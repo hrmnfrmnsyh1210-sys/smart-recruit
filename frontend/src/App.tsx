@@ -96,8 +96,8 @@ function AppRoutes() {
         <Route path="/settings" element={<Settings />} />
       </Route>
 
-      {/* Default: redirect to careers (public landing page) */}
-      <Route path="*" element={<Navigate to="/careers" replace />} />
+      {/* Default: redirect to portal pelamar */}
+      <Route path="*" element={<Navigate to="/portal" replace />} />
     </Routes>
   );
 }
