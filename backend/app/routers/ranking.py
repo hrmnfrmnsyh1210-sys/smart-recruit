@@ -70,22 +70,32 @@ async def run_ranking(
     if not job:
         raise HTTPException(status_code=404, detail="Lowongan tidak ditemukan")
 
-    # Get all candidates with completed resumes
+    # Get unique candidate IDs that have at least one completed resume
+    # Using a subquery to avoid duplicate candidates from the join
+    completed_candidate_ids = (
+        db.query(Resume.candidate_id)
+        .filter(Resume.processing_status == "completed")
+        .distinct()
+        .subquery()
+    )
     candidates = (
         db.query(Candidate)
-        .join(Resume)
-        .filter(Resume.processing_status == "completed")
+        .filter(Candidate.id.in_(completed_candidate_ids))
         .all()
     )
 
     if not candidates:
-        raise HTTPException(status_code=400, detail="Tidak ada kandidat yang tersedia untuk di-ranking")
+        raise HTTPException(
+            status_code=400,
+            detail="Tidak ada kandidat yang tersedia untuk di-ranking. Pastikan pelamar sudah mengupload CV.",
+        )
 
     # Run ranking
     ranking_results = rank_candidates(job, candidates)
 
-    # Delete old rankings for this job
-    db.query(Ranking).filter(Ranking.job_id == request.job_id).delete()
+    # Delete old rankings for this job, then save new ones
+    db.query(Ranking).filter(Ranking.job_id == request.job_id).delete(synchronize_session=False)
+    db.flush()
 
     # Save new rankings
     for result in ranking_results:

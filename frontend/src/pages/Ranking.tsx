@@ -66,30 +66,17 @@ export default function Ranking() {
       .finally(() => setJobsLoading(false));
   }, []);
 
-  const fetchOrRunRanking = useCallback(async (job: Job, forceRun = false) => {
+  const fetchOrRunRanking = useCallback(async (job: Job) => {
     setRankingLoading(true);
     setRankings([]);
     setSelectedForCompare([]);
     setCompareData([]);
     setError('');
-    setAutoRunning(false);
-    setRunningStatus('');
+    setAutoRunning(true);
+    setRunningStatus('Menjalankan AI ranking untuk semua pelamar...');
 
     try {
-      // 1. Try fetching existing rankings first (unless forceRun)
-      if (!forceRun) {
-        const existing = await rankingService.getByJob(job.id);
-        const list = Array.isArray(existing) ? existing : [];
-        if (list.length > 0) {
-          setRankings(list);
-          setRankingLoading(false);
-          return;
-        }
-      }
-
-      // 2. No data (or forceRun) → auto-run ranking
-      setAutoRunning(true);
-      setRunningStatus('Menjalankan AI ranking untuk semua pelamar...');
+      // Always re-run to get fresh results including all new applicants
       await rankingService.runRanking(job.id);
 
       setRunningStatus('Memuat hasil ranking...');
@@ -296,7 +283,7 @@ export default function Ranking() {
               <Button
                 variant="outlined"
                 startIcon={rankingLoading ? <CircularProgress size={14} /> : <RefreshIcon />}
-                onClick={() => fetchOrRunRanking(selectedJob, true)}
+                onClick={() => fetchOrRunRanking(selectedJob)}
                 size="small"
                 disabled={rankingLoading}
               >
