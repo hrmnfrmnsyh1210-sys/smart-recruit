@@ -32,7 +32,7 @@ export default function Ranking() {
     setLoading(true);
     rankingService
       .getByJob(selectedJobId)
-      .then(setRankings)
+      .then((data) => setRankings(Array.isArray(data) ? data : []))
       .catch(() => setError('Gagal memuat ranking'))
       .finally(() => setLoading(false));
   }, [selectedJobId]);

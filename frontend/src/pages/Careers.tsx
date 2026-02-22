@@ -21,7 +21,7 @@ export default function Careers() {
   useEffect(() => {
     publicService
       .listOpenJobs()
-      .then(setJobs)
+      .then((data) => setJobs(Array.isArray(data) ? data : []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
