@@ -24,7 +24,7 @@ export default function MainLayout() {
   const title = pageTitles[location.pathname] || 'SmartRecruit';
 
   return (
-    <Box className="flex min-h-screen bg-gray-50">
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <Header onMenuClick={() => setSidebarOpen(true)} title={title} />
       <Box

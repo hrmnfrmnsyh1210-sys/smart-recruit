@@ -11,16 +11,26 @@ import Upload from './pages/Upload';
 import Ranking from './pages/Ranking';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
-import Careers from './pages/Careers';
-import Apply from './pages/Apply';
 import ApplicantPortal from './pages/ApplicantPortal';
 import { CircularProgress, Box } from '@mui/material';
 
 const theme = createTheme({
   palette: {
-    primary: { main: '#3b82f6' },
-    secondary: { main: '#8b5cf6' },
-    background: { default: '#f8fafc' },
+    mode: 'dark',
+    primary: { main: '#60a5fa' },
+    secondary: { main: '#a78bfa' },
+    success: { main: '#34d399' },
+    warning: { main: '#fbbf24' },
+    error: { main: '#f87171' },
+    background: {
+      default: '#050508',
+      paper: '#0c0c12',
+    },
+    divider: 'rgba(255,255,255,0.072)',
+    text: {
+      primary: '#f1f5ff',
+      secondary: 'rgba(241,245,255,0.5)',
+    },
   },
   typography: {
     fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
@@ -34,7 +44,53 @@ const theme = createTheme({
     },
     MuiCard: {
       styleOverrides: {
-        root: { borderRadius: 16 },
+        root: {
+          borderRadius: 16,
+          backgroundImage: 'none',
+          backgroundColor: '#0c0c12',
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none',
+        },
+      },
+    },
+    MuiDrawer: {
+      styleOverrides: {
+        paper: {
+          backgroundColor: '#09090e',
+          backgroundImage: 'none',
+        },
+      },
+    },
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none',
+          backgroundColor: 'rgba(5,5,8,0.85)',
+          backdropFilter: 'blur(24px)',
+        },
+      },
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          backgroundColor: '#0c0c12',
+          backgroundImage: 'none',
+          border: '1px solid rgba(255,255,255,0.072)',
+        },
+      },
+    },
+    MuiMenu: {
+      styleOverrides: {
+        paper: {
+          backgroundColor: '#0c0c12',
+          backgroundImage: 'none',
+          border: '1px solid rgba(255,255,255,0.072)',
+        },
       },
     },
   },
@@ -69,8 +125,6 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Public pages - no login required */}
-      <Route path="/careers" element={<Careers />} />
-      <Route path="/apply/:jobId" element={<Apply />} />
       <Route path="/portal" element={<ApplicantPortal />} />
 
       {/* Auth */}

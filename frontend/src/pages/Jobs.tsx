@@ -3,6 +3,7 @@ import {
   Box, Card, CardContent, TextField, Button, Chip, Typography,
   IconButton, InputAdornment, Dialog, DialogTitle, DialogContent,
   DialogActions, Alert, Grid, MenuItem, Select, FormControl, InputLabel,
+  Pagination,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -24,6 +25,8 @@ const statusLabels: Record<string, string> = {
   closed: 'Ditutup',
   draft: 'Draft',
 };
+
+const JOBS_PER_PAGE = 10;
 
 const emptyJob: CreateJobRequest = {
   title: '',
@@ -47,12 +50,14 @@ export default function Jobs() {
   const [formData, setFormData] = useState<CreateJobRequest>(emptyJob);
   const [skillInput, setSkillInput] = useState('');
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
 
   const loadJobs = useCallback(async () => {
     setLoading(true);
     try {
       const result = await jobService.list({ search: search || undefined });
       setJobs(result.items);
+      setPage(1);
     } catch {
       setError('Gagal memuat data lowongan');
     } finally {
@@ -137,12 +142,15 @@ export default function Jobs() {
     }
   };
 
+  const totalPages = Math.ceil(jobs.length / JOBS_PER_PAGE);
+  const pagedJobs = jobs.slice((page - 1) * JOBS_PER_PAGE, page * JOBS_PER_PAGE);
+
   return (
     <Box>
-      {error && <Alert severity="error" className="mb-4" onClose={() => setError('')}>{error}</Alert>}
-      {success && <Alert severity="success" className="mb-4" onClose={() => setSuccess('')}>{success}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>{error}</Alert>}
+      {success && <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess('')}>{success}</Alert>}
 
-      <Box className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4">
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { md: 'center' }, gap: 2, mb: 3 }}>
         <TextField
           placeholder="Cari lowongan..."
           size="small"
@@ -168,12 +176,15 @@ export default function Jobs() {
                 <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', height: 200 }} />
               </Grid>
             ))
-          : jobs.map((job) => (
+          : pagedJobs.map((job) => (
               <Grid size={{ xs: 12, md: 6, lg: 4 }} key={job.id}>
                 <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
                   <CardContent>
-                    <Box className="flex justify-between items-start mb-2">
-                      <Typography variant="h6" fontWeight={600} className="line-clamp-1">
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+                      <Typography variant="h6" fontWeight={600} sx={{
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        flex: 1, mr: 1,
+                      }}>
                         {job.title}
                       </Typography>
                       <Chip
@@ -182,13 +193,16 @@ export default function Jobs() {
                         size="small"
                       />
                     </Box>
-                    <Typography variant="body2" color="text.secondary" className="mb-2">
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
                       {job.department}
                     </Typography>
-                    <Typography variant="body2" className="line-clamp-2 mb-3">
+                    <Typography variant="body2" sx={{
+                      mb: 2, display: '-webkit-box',
+                      WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                    }}>
                       {job.description}
                     </Typography>
-                    <Box className="flex flex-wrap gap-1 mb-3">
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 2 }}>
                       {job.skills_required?.slice(0, 4).map((skill) => (
                         <Chip key={skill} label={skill} size="small" variant="outlined" />
                       ))}
@@ -196,7 +210,7 @@ export default function Jobs() {
                         <Chip label={`+${job.skills_required.length - 4}`} size="small" />
                       )}
                     </Box>
-                    <Box className="flex justify-between items-center">
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Typography variant="caption" color="text.secondary">
                         Min. {job.min_experience_years} tahun exp.
                       </Typography>
@@ -217,6 +231,23 @@ export default function Jobs() {
               </Grid>
             ))}
       </Grid>
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+          <Pagination
+            count={totalPages}
+            page={page}
+            onChange={(_, p) => setPage(p)}
+            color="primary"
+          />
+        </Box>
+      )}
+      {!loading && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 1 }}>
+          {jobs.length > 0 ? `Menampilkan ${(page - 1) * JOBS_PER_PAGE + 1}–${Math.min(page * JOBS_PER_PAGE, jobs.length)} dari ${jobs.length} lowongan` : 'Tidak ada lowongan'}
+        </Typography>
+      )}
 
       {/* Job Form Dialog */}
       <Dialog open={formOpen} onClose={() => setFormOpen(false)} maxWidth="md" fullWidth>

@@ -1,11 +1,16 @@
 import { useState, useEffect } from 'react';
 import {
-  Box, Card, CardContent, Typography, Select, MenuItem, FormControl,
-  InputLabel, Button, Chip, Alert, LinearProgress, Tooltip, Grid,
+  Box, Card, CardContent, Typography, Button, Chip, Alert, LinearProgress,
+  Tooltip, Grid, Pagination, Skeleton,
 } from '@mui/material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import DownloadIcon from '@mui/icons-material/Download';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
+import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
+import WorkIcon from '@mui/icons-material/Work';
+import SchoolIcon from '@mui/icons-material/School';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import LeaderboardIcon from '@mui/icons-material/Leaderboard';
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   ResponsiveContainer, Tooltip as RechartsTooltip,
@@ -14,37 +19,70 @@ import { rankingService } from '../services/ranking';
 import { jobService } from '../services/jobs';
 import type { Job, Ranking as RankingType } from '../types';
 
+const JOBS_PER_PAGE = 10;
+
+const C = {
+  surface: 'rgba(255,255,255,0.032)',
+  border: 'rgba(255,255,255,0.072)',
+  text: '#f1f5ff',
+  muted: 'rgba(241,245,255,0.5)',
+  dim: 'rgba(241,245,255,0.26)',
+  blue: '#60a5fa',
+  purple: '#a78bfa',
+  green: '#34d399',
+  red: '#f87171',
+  yellow: '#fbbf24',
+} as const;
+
+const ACCENT_COLORS = ['#60a5fa', '#a78bfa', '#34d399', '#fb923c', '#f472b6'];
+const RADAR_COLORS = ['#60a5fa', '#34d399', '#fbbf24'];
+
+const statusLabels: Record<string, string> = {
+  open: 'Terbuka',
+  closed: 'Ditutup',
+  draft: 'Draft',
+};
+
 export default function Ranking() {
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [selectedJobId, setSelectedJobId] = useState<number | ''>('');
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [rankings, setRankings] = useState<RankingType[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [rankingLoading, setRankingLoading] = useState(false);
   const [error, setError] = useState('');
   const [selectedForCompare, setSelectedForCompare] = useState<number[]>([]);
   const [compareData, setCompareData] = useState<RankingType[]>([]);
+  const [jobPage, setJobPage] = useState(1);
 
   useEffect(() => {
-    jobService.list().then((res) => setJobs(res.items)).catch(() => {});
+    setJobsLoading(true);
+    jobService.list()
+      .then((res) => setJobs(res.items))
+      .catch(() => setError('Gagal memuat daftar lowongan'))
+      .finally(() => setJobsLoading(false));
   }, []);
 
   useEffect(() => {
-    if (!selectedJobId) return;
-    setLoading(true);
+    if (!selectedJob) return;
+    setRankingLoading(true);
+    setRankings([]);
+    setSelectedForCompare([]);
+    setCompareData([]);
     rankingService
-      .getByJob(selectedJobId)
+      .getByJob(selectedJob.id)
       .then((data) => setRankings(Array.isArray(data) ? data : []))
       .catch(() => setError('Gagal memuat ranking'))
-      .finally(() => setLoading(false));
-  }, [selectedJobId]);
+      .finally(() => setRankingLoading(false));
+  }, [selectedJob]);
 
   const handleExport = async (format: 'csv' | 'pdf') => {
-    if (!selectedJobId) return;
+    if (!selectedJob) return;
     try {
-      const blob = await rankingService.exportRanking(selectedJobId, format);
+      const blob = await rankingService.exportRanking(selectedJob.id, format);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `ranking-job-${selectedJobId}.${format}`;
+      a.download = `ranking-job-${selectedJob.id}.${format}`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -53,9 +91,9 @@ export default function Ranking() {
   };
 
   const handleCompare = async () => {
-    if (selectedForCompare.length < 2 || !selectedJobId) return;
+    if (selectedForCompare.length < 2 || !selectedJob) return;
     try {
-      const data = await rankingService.compare(selectedForCompare, selectedJobId);
+      const data = await rankingService.compare(selectedForCompare, selectedJob.id);
       setCompareData(data);
     } catch {
       setError('Gagal membandingkan kandidat');
@@ -72,11 +110,20 @@ export default function Ranking() {
     );
   };
 
-  const getScoreColor = (score: number) => {
+  const getScoreMuiColor = (score: number): 'success' | 'warning' | 'error' => {
     if (score >= 80) return 'success';
     if (score >= 60) return 'warning';
     return 'error';
   };
+
+  const getScoreHex = (score: number) => {
+    if (score >= 80) return C.green;
+    if (score >= 60) return C.yellow;
+    return C.red;
+  };
+
+  const totalJobPages = Math.ceil(jobs.length / JOBS_PER_PAGE);
+  const pagedJobs = jobs.slice((jobPage - 1) * JOBS_PER_PAGE, jobPage * JOBS_PER_PAGE);
 
   const columns: GridColDef[] = [
     { field: 'rank_position', headerName: '#', width: 60 },
@@ -90,16 +137,16 @@ export default function Ranking() {
     {
       field: 'overall_score',
       headerName: 'Skor Total',
-      width: 130,
+      width: 160,
       renderCell: (params) => (
-        <Box className="flex items-center gap-2 w-full">
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
           <LinearProgress
             variant="determinate"
             value={params.value}
-            color={getScoreColor(params.value)}
-            sx={{ flexGrow: 1, height: 8, borderRadius: 4 }}
+            color={getScoreMuiColor(params.value)}
+            sx={{ flexGrow: 1, height: 6, borderRadius: 3 }}
           />
-          <Typography variant="body2" fontWeight={600}>
+          <Typography variant="body2" fontWeight={700} sx={{ color: getScoreHex(params.value), minWidth: 36 }}>
             {params.value?.toFixed(1)}
           </Typography>
         </Box>
@@ -110,7 +157,7 @@ export default function Ranking() {
       headerName: 'Skills',
       width: 100,
       renderCell: (params) => (
-        <Chip label={params.value?.toFixed(1)} size="small" color={getScoreColor(params.value)} variant="outlined" />
+        <Chip label={params.value?.toFixed(1)} size="small" color={getScoreMuiColor(params.value)} variant="outlined" />
       ),
     },
     {
@@ -118,7 +165,7 @@ export default function Ranking() {
       headerName: 'Pengalaman',
       width: 110,
       renderCell: (params) => (
-        <Chip label={params.value?.toFixed(1)} size="small" color={getScoreColor(params.value)} variant="outlined" />
+        <Chip label={params.value?.toFixed(1)} size="small" color={getScoreMuiColor(params.value)} variant="outlined" />
       ),
     },
     {
@@ -126,7 +173,7 @@ export default function Ranking() {
       headerName: 'Pendidikan',
       width: 110,
       renderCell: (params) => (
-        <Chip label={params.value?.toFixed(1)} size="small" color={getScoreColor(params.value)} variant="outlined" />
+        <Chip label={params.value?.toFixed(1)} size="small" color={getScoreMuiColor(params.value)} variant="outlined" />
       ),
     },
     {
@@ -135,7 +182,7 @@ export default function Ranking() {
       flex: 1,
       minWidth: 200,
       renderCell: (params) => (
-        <Box className="flex flex-wrap gap-1 py-1">
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, py: 1 }}>
           {(params.value as string[] || []).slice(0, 3).map((skill: string) => (
             <Chip key={skill} label={skill} size="small" color="success" variant="outlined" />
           ))}
@@ -150,13 +197,14 @@ export default function Ranking() {
     {
       field: 'compare',
       headerName: 'Bandingkan',
-      width: 100,
+      width: 110,
       sortable: false,
       renderCell: (params) => (
         <Button
           size="small"
           variant={selectedForCompare.includes(params.row.candidate_id) ? 'contained' : 'outlined'}
           onClick={() => toggleCompare(params.row.candidate_id)}
+          sx={{ fontSize: '0.72rem', minWidth: 'auto', px: 1.5 }}
         >
           {selectedForCompare.includes(params.row.candidate_id) ? 'Dipilih' : 'Pilih'}
         </Button>
@@ -164,35 +212,48 @@ export default function Ranking() {
     },
   ];
 
-  const RADAR_COLORS = ['#3b82f6', '#10b981', '#f59e0b'];
-
   return (
     <Box>
-      {error && <Alert severity="error" className="mb-4" onClose={() => setError('')}>{error}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>{error}</Alert>
+      )}
 
-      <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }} className="mb-4">
-        <CardContent>
-          <Box className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-            <FormControl sx={{ minWidth: 300 }}>
-              <InputLabel>Pilih Lowongan</InputLabel>
-              <Select
-                value={selectedJobId}
-                label="Pilih Lowongan"
-                onChange={(e) => setSelectedJobId(e.target.value as number)}
-              >
-                {jobs.map((job) => (
-                  <MenuItem key={job.id} value={job.id}>
-                    {job.title} - {job.department}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <Box className="flex gap-2">
+      {/* ── Job Cards Section ─────────────────────────── */}
+      <Box sx={{ mb: 4 }}>
+        {/* Section header */}
+        <Box sx={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          mb: 3, flexWrap: 'wrap', gap: 2,
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{
+              width: 36, height: 36, borderRadius: '10px',
+              background: 'linear-gradient(135deg,rgba(96,165,250,0.2),rgba(167,139,250,0.2))',
+              border: '1px solid rgba(96,165,250,0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <LeaderboardIcon sx={{ color: C.blue, fontSize: 18 }} />
+            </Box>
+            <Box>
+              <Typography variant="h6" fontWeight={700} sx={{ color: C.text }}>
+                Pilih Lowongan
+              </Typography>
+              <Typography variant="body2" sx={{ color: C.muted }}>
+                {jobsLoading ? 'Memuat...' : `${jobs.length} lowongan tersedia — klik kartu untuk melihat ranking`}
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Action buttons (visible when job selected) */}
+          {selectedJob && (
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
               {selectedForCompare.length >= 2 && (
                 <Button
                   variant="outlined"
                   startIcon={<CompareArrowsIcon />}
                   onClick={handleCompare}
+                  size="small"
+                  sx={{ borderColor: C.purple, color: C.purple, '&:hover': { borderColor: C.purple, bgcolor: `${C.purple}10` } }}
                 >
                   Bandingkan ({selectedForCompare.length})
                 </Button>
@@ -201,7 +262,7 @@ export default function Ranking() {
                 variant="outlined"
                 startIcon={<DownloadIcon />}
                 onClick={() => handleExport('csv')}
-                disabled={!selectedJobId}
+                size="small"
               >
                 Export CSV
               </Button>
@@ -209,45 +270,237 @@ export default function Ranking() {
                 variant="outlined"
                 startIcon={<DownloadIcon />}
                 onClick={() => handleExport('pdf')}
-                disabled={!selectedJobId}
+                size="small"
               >
                 Export PDF
               </Button>
             </Box>
-          </Box>
-        </CardContent>
-      </Card>
+          )}
+        </Box>
 
-      {/* Rankings Table */}
-      {selectedJobId && (
-        <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }} className="mb-4">
-          <CardContent>
-            <Typography variant="h6" fontWeight={600} className="mb-3">
-              Hasil Ranking ({rankings.length} kandidat)
+        {/* Job Cards Grid */}
+        {jobsLoading ? (
+          <Grid container spacing={2}>
+            {[...Array(6)].map((_, i) => (
+              <Grid size={{ xs: 12, sm: 6, lg: 4 }} key={i}>
+                <Skeleton
+                  variant="rounded"
+                  height={160}
+                  sx={{ borderRadius: '16px', bgcolor: C.surface }}
+                />
+              </Grid>
+            ))}
+          </Grid>
+        ) : jobs.length === 0 ? (
+          <Box sx={{
+            textAlign: 'center', py: 10,
+            bgcolor: C.surface, border: `1px solid ${C.border}`, borderRadius: '16px',
+          }}>
+            <WorkIcon sx={{ fontSize: 44, color: C.dim, mb: 2, display: 'block', mx: 'auto' }} />
+            <Typography sx={{ color: C.muted, fontWeight: 600 }}>Belum ada lowongan tersedia</Typography>
+            <Typography sx={{ fontSize: '0.82rem', color: C.dim, mt: 0.5 }}>
+              Buat lowongan di menu Lowongan terlebih dahulu
             </Typography>
-            <DataGrid
-              rows={rankings}
-              columns={columns}
-              loading={loading}
-              autoHeight
-              disableRowSelectionOnClick
-              pageSizeOptions={[10, 25, 50]}
-              initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-              getRowHeight={() => 'auto'}
-              sx={{
-                border: 'none',
-                '& .MuiDataGrid-cell': { py: 1 },
-              }}
-            />
-          </CardContent>
-        </Card>
+          </Box>
+        ) : (
+          <>
+            <Grid container spacing={2}>
+              {pagedJobs.map((job, idx) => {
+                const accent = ACCENT_COLORS[((jobPage - 1) * JOBS_PER_PAGE + idx) % ACCENT_COLORS.length];
+                const isSelected = selectedJob?.id === job.id;
+                return (
+                  <Grid size={{ xs: 12, sm: 6, lg: 4 }} key={job.id}>
+                    <Box
+                      onClick={() => setSelectedJob(isSelected ? null : job)}
+                      sx={{
+                        height: '100%', p: '1.5px', borderRadius: '16px', cursor: 'pointer',
+                        background: isSelected
+                          ? `linear-gradient(135deg,${accent},${accent}66)`
+                          : C.border,
+                        transition: 'all 0.25s ease',
+                        '&:hover': {
+                          background: `linear-gradient(135deg,${accent}99,${accent}44)`,
+                          transform: 'translateY(-2px)',
+                        },
+                      }}
+                    >
+                      <Box sx={{
+                        bgcolor: isSelected ? `${accent}0d` : '#0c0c12',
+                        borderRadius: '14px', p: 2.5,
+                        height: '100%', display: 'flex', flexDirection: 'column',
+                        transition: 'bgcolor 0.25s',
+                      }}>
+                        {/* Card header */}
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1.5 }}>
+                          <Box sx={{
+                            width: 40, height: 40, borderRadius: '10px', flexShrink: 0,
+                            background: `linear-gradient(135deg,${accent}22,${accent}11)`,
+                            border: `1px solid ${accent}30`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            <BusinessCenterIcon sx={{ color: accent, fontSize: 20 }} />
+                          </Box>
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography fontWeight={700} sx={{
+                              color: C.text, lineHeight: 1.3, mb: 0.25, fontSize: '0.9rem',
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            }}>
+                              {job.title}
+                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                              <Box sx={{
+                                width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
+                                bgcolor: job.status === 'open' ? C.green : C.dim,
+                                boxShadow: job.status === 'open' ? `0 0 5px ${C.green}` : 'none',
+                              }} />
+                              <Typography sx={{ fontSize: '0.7rem', color: C.muted }}>
+                                {job.department}
+                              </Typography>
+                              <Typography sx={{ fontSize: '0.65rem', color: C.dim }}>·</Typography>
+                              <Typography sx={{
+                                fontSize: '0.65rem',
+                                color: job.status === 'open' ? C.green : C.dim,
+                                fontWeight: 600,
+                              }}>
+                                {statusLabels[job.status] ?? job.status}
+                              </Typography>
+                            </Box>
+                          </Box>
+                          {isSelected && (
+                            <CheckCircleIcon sx={{ color: accent, fontSize: 18, flexShrink: 0, mt: 0.25 }} />
+                          )}
+                        </Box>
+
+                        {/* Skills */}
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1.5, flex: 1 }}>
+                          {job.skills_required?.slice(0, 3).map((s) => (
+                            <Box key={s} sx={{
+                              px: 1, py: 0.2, borderRadius: '5px',
+                              bgcolor: `${accent}0f`, border: `1px solid ${accent}28`,
+                            }}>
+                              <Typography sx={{ fontSize: '0.65rem', color: accent, fontWeight: 500 }}>{s}</Typography>
+                            </Box>
+                          ))}
+                          {(job.skills_required?.length ?? 0) > 3 && (
+                            <Box sx={{
+                              px: 1, py: 0.2, borderRadius: '5px',
+                              bgcolor: C.surface, border: `1px solid ${C.border}`,
+                            }}>
+                              <Typography sx={{ fontSize: '0.65rem', color: C.dim }}>
+                                +{(job.skills_required?.length ?? 0) - 3}
+                              </Typography>
+                            </Box>
+                          )}
+                        </Box>
+
+                        {/* Footer */}
+                        <Box sx={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          pt: 1.5, borderTop: `1px solid ${isSelected ? `${accent}30` : C.border}`,
+                        }}>
+                          <Box sx={{ display: 'flex', gap: 1.5 }}>
+                            {job.min_experience_years > 0 && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                                <WorkIcon sx={{ fontSize: 11, color: C.dim }} />
+                                <Typography sx={{ fontSize: '0.65rem', color: C.dim }}>
+                                  {job.min_experience_years}+ thn
+                                </Typography>
+                              </Box>
+                            )}
+                            {job.education_level && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                                <SchoolIcon sx={{ fontSize: 11, color: C.dim }} />
+                                <Typography sx={{ fontSize: '0.65rem', color: C.dim }}>
+                                  {job.education_level}
+                                </Typography>
+                              </Box>
+                            )}
+                          </Box>
+                          <Typography sx={{
+                            fontSize: '0.65rem', fontWeight: isSelected ? 700 : 400,
+                            color: isSelected ? accent : C.dim,
+                          }}>
+                            {isSelected ? 'Terpilih ✓' : 'Lihat ranking →'}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+                  </Grid>
+                );
+              })}
+            </Grid>
+
+            {/* Jobs Pagination */}
+            {totalJobPages > 1 && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                <Pagination
+                  count={totalJobPages}
+                  page={jobPage}
+                  onChange={(_, p) => { setJobPage(p); setSelectedJob(null); }}
+                  color="primary"
+                  size="small"
+                />
+              </Box>
+            )}
+          </>
+        )}
+      </Box>
+
+      {/* ── Rankings Section ─────────────────────────── */}
+      {selectedJob && (
+        <Box>
+          {/* Section divider + title */}
+          <Box sx={{
+            display: 'flex', alignItems: 'center', gap: 2, mb: 3,
+            pb: 2, borderBottom: `1px solid ${C.border}`,
+          }}>
+            <Box sx={{
+              width: 4, height: 32, borderRadius: '4px',
+              background: 'linear-gradient(180deg,#60a5fa,#a78bfa)',
+            }} />
+            <Box>
+              <Typography variant="h6" fontWeight={700} sx={{ color: C.text }}>
+                Ranking — {selectedJob.title}
+              </Typography>
+              <Typography variant="body2" sx={{ color: C.muted }}>
+                {rankingLoading ? 'Memuat ranking...' : `${rankings.length} kandidat terranking`}
+              </Typography>
+            </Box>
+          </Box>
+
+          <Card elevation={0} sx={{ border: `1px solid ${C.border}` }}>
+            <CardContent>
+              <DataGrid
+                rows={rankings}
+                columns={columns}
+                loading={rankingLoading}
+                autoHeight
+                disableRowSelectionOnClick
+                pageSizeOptions={[10]}
+                initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+                getRowHeight={() => 'auto'}
+                sx={{
+                  border: 'none',
+                  '& .MuiDataGrid-cell': { py: 1 },
+                  '& .MuiDataGrid-columnHeaders': {
+                    bgcolor: 'rgba(255,255,255,0.025)',
+                    borderBottom: `1px solid ${C.border}`,
+                  },
+                  '& .MuiDataGrid-row:hover': {
+                    bgcolor: 'rgba(96,165,250,0.04)',
+                  },
+                }}
+              />
+            </CardContent>
+          </Card>
+        </Box>
       )}
 
-      {/* Comparison Radar Chart */}
+      {/* ── Comparison Radar Chart ─────────────────────── */}
       {compareData.length >= 2 && (
-        <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+        <Card elevation={0} sx={{ border: `1px solid ${C.border}`, mt: 4 }}>
           <CardContent>
-            <Typography variant="h6" fontWeight={600} className="mb-3">
+            <Typography variant="h6" fontWeight={700} sx={{ color: C.text, mb: 3 }}>
               Perbandingan Kandidat
             </Typography>
             <Grid container spacing={3}>
@@ -259,12 +512,12 @@ export default function Ranking() {
                       { metric: 'Pengalaman', ...Object.fromEntries(compareData.map((c, i) => [`c${i}`, c.experience_score])) },
                       { metric: 'Pendidikan', ...Object.fromEntries(compareData.map((c, i) => [`c${i}`, c.education_score])) },
                       { metric: 'Sertifikasi', ...Object.fromEntries(compareData.map((c, i) => [`c${i}`, c.certification_score])) },
-                      { metric: 'Kecocokan Semantik', ...Object.fromEntries(compareData.map((c, i) => [`c${i}`, c.semantic_similarity * 100])) },
+                      { metric: 'Kecocokan', ...Object.fromEntries(compareData.map((c, i) => [`c${i}`, c.semantic_similarity * 100])) },
                     ]}
                   >
-                    <PolarGrid />
-                    <PolarAngleAxis dataKey="metric" />
-                    <PolarRadiusAxis domain={[0, 100]} />
+                    <PolarGrid stroke={C.border} />
+                    <PolarAngleAxis dataKey="metric" tick={{ fill: C.muted, fontSize: 12 }} />
+                    <PolarRadiusAxis domain={[0, 100]} tick={{ fill: C.dim, fontSize: 10 }} />
                     {compareData.map((c, i) => (
                       <Radar
                         key={c.candidate_id}
@@ -275,42 +528,74 @@ export default function Ranking() {
                         fillOpacity={0.15}
                       />
                     ))}
-                    <RechartsTooltip />
+                    <RechartsTooltip
+                      contentStyle={{
+                        backgroundColor: '#0c0c12',
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 8,
+                      }}
+                    />
                   </RadarChart>
                 </ResponsiveContainer>
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
                 {compareData.map((c, i) => (
-                  <Card key={c.candidate_id} variant="outlined" className="p-4 mb-3">
-                    <Box className="flex items-center gap-2 mb-2">
-                      <Box
-                        className="w-4 h-4 rounded-full"
-                        sx={{ bgcolor: RADAR_COLORS[i] }}
-                      />
-                      <Typography fontWeight={600}>
+                  <Box key={c.candidate_id} sx={{
+                    p: 2.5, mb: 2, borderRadius: '14px',
+                    bgcolor: C.surface,
+                    border: `1px solid ${RADAR_COLORS[i]}30`,
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5 }}>
+                      <Box sx={{
+                        width: 12, height: 12, borderRadius: '50%',
+                        bgcolor: RADAR_COLORS[i], flexShrink: 0,
+                      }} />
+                      <Typography fontWeight={700} sx={{ color: C.text, flex: 1 }}>
                         {c.candidate?.full_name || `Kandidat #${c.candidate_id}`}
                       </Typography>
-                      <Chip label={`Skor: ${c.overall_score.toFixed(1)}`} color={getScoreColor(c.overall_score)} size="small" />
+                      <Box sx={{
+                        px: 1.5, py: 0.3, borderRadius: '6px',
+                        bgcolor: `${RADAR_COLORS[i]}18`,
+                        border: `1px solid ${RADAR_COLORS[i]}40`,
+                      }}>
+                        <Typography sx={{ fontSize: '0.75rem', color: RADAR_COLORS[i], fontWeight: 700 }}>
+                          {c.overall_score.toFixed(1)}
+                        </Typography>
+                      </Box>
                     </Box>
-                    <Typography variant="body2" color="text.secondary" className="mb-2">
+                    <Typography variant="body2" sx={{ color: C.muted, mb: 1.5, fontSize: '0.8rem', lineHeight: 1.7 }}>
                       {c.explanation}
                     </Typography>
-                    <Box className="flex flex-wrap gap-1">
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                       {c.matched_skills?.map((skill) => (
-                        <Chip key={skill} label={skill} size="small" color="success" variant="outlined" />
+                        <Box key={skill} sx={{
+                          px: 1, py: 0.2, borderRadius: '5px',
+                          bgcolor: 'rgba(52,211,153,0.08)',
+                          border: '1px solid rgba(52,211,153,0.2)',
+                        }}>
+                          <Typography sx={{ fontSize: '0.65rem', color: C.green, fontWeight: 500 }}>{skill}</Typography>
+                        </Box>
                       ))}
                     </Box>
                     {c.missing_skills?.length > 0 && (
-                      <Box className="mt-2">
-                        <Typography variant="caption" color="error">Skills kurang:</Typography>
-                        <Box className="flex flex-wrap gap-1 mt-1">
+                      <Box sx={{ mt: 1.5 }}>
+                        <Typography sx={{ fontSize: '0.7rem', color: C.red, mb: 0.5, fontWeight: 600 }}>
+                          Skills kurang:
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                           {c.missing_skills.map((skill) => (
-                            <Chip key={skill} label={skill} size="small" color="error" variant="outlined" />
+                            <Box key={skill} sx={{
+                              px: 1, py: 0.2, borderRadius: '5px',
+                              bgcolor: 'rgba(248,113,113,0.08)',
+                              border: '1px solid rgba(248,113,113,0.2)',
+                            }}>
+                              <Typography sx={{ fontSize: '0.65rem', color: C.red, fontWeight: 500 }}>{skill}</Typography>
+                            </Box>
                           ))}
                         </Box>
                       </Box>
                     )}
-                  </Card>
+                  </Box>
                 ))}
               </Grid>
             </Grid>
