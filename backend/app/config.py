@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "../uploads"
     MAX_FILE_SIZE: int = 10485760  # 10MB
 
+    # CORS
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://localhost:3002"
+
     # App
     APP_NAME: str = "SmartRecruit"
     DEBUG: bool = True
