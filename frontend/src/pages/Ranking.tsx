@@ -352,28 +352,45 @@ export default function Ranking() {
                       sx={{
                         height: '100%', p: '1.5px', borderRadius: '16px', cursor: 'pointer',
                         background: isSelected
-                          ? `linear-gradient(135deg,${accent},${accent}66)`
+                          ? `linear-gradient(135deg,${accent}55,${accent}22)`
                           : C.border,
+                        boxShadow: isSelected
+                          ? `0 0 20px ${accent}18, 0 4px 24px rgba(0,0,0,0.4)`
+                          : '0 2px 8px rgba(0,0,0,0.2)',
                         transition: 'all 0.25s ease',
                         '&:hover': {
-                          background: `linear-gradient(135deg,${accent}99,${accent}44)`,
+                          background: isSelected
+                            ? `linear-gradient(135deg,${accent}66,${accent}33)`
+                            : `linear-gradient(135deg,${accent}40,${accent}18)`,
                           transform: 'translateY(-2px)',
+                          boxShadow: `0 0 24px ${accent}20, 0 6px 28px rgba(0,0,0,0.45)`,
                         },
                       }}
                     >
                       <Box sx={{
-                        bgcolor: isSelected ? `${accent}0d` : '#0c0c12',
+                        bgcolor: '#0c0c12',
                         borderRadius: '14px', p: 2.5,
                         height: '100%', display: 'flex', flexDirection: 'column',
-                        transition: 'bgcolor 0.25s',
+                        position: 'relative', overflow: 'hidden',
                       }}>
+                        {/* Top accent bar when selected */}
+                        {isSelected && (
+                          <Box sx={{
+                            position: 'absolute', top: 0, left: 0, right: 0, height: '2px',
+                            background: `linear-gradient(90deg,${accent},${accent}30)`,
+                          }} />
+                        )}
+
                         {/* Card header */}
                         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1.5 }}>
                           <Box sx={{
                             width: 40, height: 40, borderRadius: '10px', flexShrink: 0,
-                            background: `linear-gradient(135deg,${accent}22,${accent}11)`,
-                            border: `1px solid ${accent}30`,
+                            background: isSelected
+                              ? `linear-gradient(135deg,${accent}30,${accent}18)`
+                              : `linear-gradient(135deg,${accent}18,${accent}0c)`,
+                            border: `1px solid ${accent}${isSelected ? '40' : '22'}`,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            transition: 'all 0.25s',
                           }}>
                             <BusinessCenterIcon sx={{ color: accent, fontSize: 20 }} />
                           </Box>
@@ -404,7 +421,13 @@ export default function Ranking() {
                             </Box>
                           </Box>
                           {isSelected && (
-                            <CheckCircleIcon sx={{ color: accent, fontSize: 18, flexShrink: 0, mt: 0.25 }} />
+                            <Box sx={{
+                              width: 20, height: 20, borderRadius: '50%', flexShrink: 0, mt: 0.2,
+                              bgcolor: `${accent}22`, border: `1px solid ${accent}50`,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                              <CheckCircleIcon sx={{ color: accent, fontSize: 14 }} />
+                            </Box>
                           )}
                         </Box>
 
@@ -413,7 +436,8 @@ export default function Ranking() {
                           {job.skills_required?.slice(0, 3).map((s) => (
                             <Box key={s} sx={{
                               px: 1, py: 0.2, borderRadius: '5px',
-                              bgcolor: `${accent}0f`, border: `1px solid ${accent}28`,
+                              bgcolor: `${accent}0c`,
+                              border: `1px solid ${accent}${isSelected ? '35' : '22'}`,
                             }}>
                               <Typography sx={{ fontSize: '0.65rem', color: accent, fontWeight: 500 }}>{s}</Typography>
                             </Box>
@@ -433,7 +457,8 @@ export default function Ranking() {
                         {/* Footer */}
                         <Box sx={{
                           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          pt: 1.5, borderTop: `1px solid ${isSelected ? `${accent}30` : C.border}`,
+                          pt: 1.5,
+                          borderTop: `1px solid ${isSelected ? `${accent}25` : C.border}`,
                         }}>
                           <Box sx={{ display: 'flex', gap: 1.5 }}>
                             {job.min_experience_years > 0 && (
