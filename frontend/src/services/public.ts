@@ -2,7 +2,9 @@ import axios from 'axios';
 import type { Job } from '../types';
 
 const publicApi = axios.create({
-  baseURL: '/api/public',
+  baseURL: import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api/public`
+    : '/api/public',
   headers: { 'Content-Type': 'application/json' },
 });
 
