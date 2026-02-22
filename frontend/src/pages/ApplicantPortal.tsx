@@ -610,17 +610,16 @@ export default function ApplicantPortal() {
                 sx={{
                   bgcolor: C.surface, border: `1px solid ${C.border}`,
                   borderRadius: '16px', p: 3,
-                  position: { md: 'sticky' }, top: 90,
-                  // Top accent
-                  '&::before': {
-                    content: '""', position: 'absolute',
-                    top: 0, left: 0, right: 0, height: '2px',
-                    background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)',
-                    borderRadius: '16px 16px 0 0',
-                  },
-                  position: 'relative', overflow: 'hidden',
+                  position: { xs: 'relative', md: 'sticky' },
+                  top: { md: 90 },
                 }}
               >
+                {/* Top accent line */}
+                <Box sx={{
+                  position: 'absolute', top: 0, left: 0, right: 0, height: '2px',
+                  background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)',
+                  borderRadius: '16px 16px 0 0',
+                }} />
                 <Typography
                   sx={{
                     fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.15em',
