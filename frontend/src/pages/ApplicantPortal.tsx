@@ -1,22 +1,152 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Box, Container, Typography, Button, Card, CardContent,
-  Grid, Chip, TextField, Stepper, Step, StepLabel,
-  CircularProgress, LinearProgress, Alert, AppBar, Toolbar,
-  Avatar, Divider, Paper, Skeleton,
+  Box, Container, Typography, Button, Grid,
+  TextField, CircularProgress, LinearProgress, Alert, Skeleton,
 } from '@mui/material';
 import {
-  CloudUpload, CheckCircle, Work, School, ArrowBack,
-  ArrowForward, Description, Phone, Email, Person,
-  BusinessCenter, InsertDriveFile, Close,
+  CloudUpload, CheckCircle, Work, School, ArrowBack, ArrowForward,
+  Description, Phone, Email, Person, BusinessCenter, InsertDriveFile,
+  Close, AutoAwesome, Bolt, Shield,
 } from '@mui/icons-material';
 import LeaderboardIcon from '@mui/icons-material/Leaderboard';
 import { useDropzone } from 'react-dropzone';
 import { publicService } from '../services/public';
 import type { Job } from '../types';
 
-const STEPS = ['Pilih Posisi', 'Data Diri & CV', 'Selesai'];
+// ─── Design tokens ───────────────────────────────────────────────────────────
+const C = {
+  bg: '#07070a',
+  surface: 'rgba(255,255,255,0.03)',
+  surfaceHover: 'rgba(255,255,255,0.06)',
+  border: 'rgba(255,255,255,0.07)',
+  borderHover: 'rgba(99,160,255,0.4)',
+  text: '#eef2ff',
+  textMuted: 'rgba(238,242,255,0.52)',
+  textDim: 'rgba(238,242,255,0.28)',
+  blue: '#60a5fa',
+  purple: '#a78bfa',
+  green: '#34d399',
+  red: '#f87171',
+} as const;
 
+// ─── Dark input styles ────────────────────────────────────────────────────────
+const inputSx = {
+  '& .MuiOutlinedInput-root': {
+    bgcolor: 'rgba(255,255,255,0.04)',
+    borderRadius: '10px',
+    color: C.text,
+    '& fieldset': { borderColor: C.border },
+    '&:hover fieldset': { borderColor: 'rgba(99,160,255,0.3)' },
+    '&.Mui-focused fieldset': { borderColor: C.blue, borderWidth: '1.5px' },
+    '& input': { color: C.text },
+    '& input::placeholder': { color: C.textDim, opacity: 1 },
+    '& .MuiSvgIcon-root': { color: C.textDim },
+  },
+  '& .MuiInputLabel-root': { color: C.textDim },
+  '& .MuiInputLabel-root.Mui-focused': { color: C.blue },
+  '& .MuiFormHelperText-root': { color: C.textDim, mt: 0.75 },
+};
+
+// ─── Custom Step Indicator ────────────────────────────────────────────────────
+function StepDot({
+  index, label, active, done,
+}: {
+  index: number; label: string; active: boolean; done: boolean;
+}) {
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+      <Box
+        sx={{
+          width: 38, height: 38, borderRadius: '50%',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontWeight: 800, fontSize: '0.8rem',
+          transition: 'all 0.3s ease',
+          ...(done && {
+            background: 'linear-gradient(135deg, #059669 0%, #34d399 100%)',
+            color: 'white',
+            boxShadow: '0 0 18px rgba(52,211,153,0.4)',
+          }),
+          ...(active && !done && {
+            background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+            color: 'white',
+            boxShadow: '0 0 24px rgba(96,165,250,0.45)',
+            border: '1.5px solid rgba(99,160,255,0.4)',
+          }),
+          ...(!active && !done && {
+            bgcolor: 'rgba(255,255,255,0.06)',
+            color: C.textDim,
+            border: `1px solid ${C.border}`,
+          }),
+        }}
+      >
+        {done ? <CheckCircle sx={{ fontSize: 18 }} /> : index}
+      </Box>
+      <Typography
+        variant="caption"
+        sx={{
+          fontWeight: active ? 700 : 400,
+          color: done ? C.green : active ? C.blue : C.textDim,
+          whiteSpace: 'nowrap',
+          transition: 'color 0.3s',
+        }}
+      >
+        {label}
+      </Typography>
+    </Box>
+  );
+}
+
+function StepLine({ done }: { done: boolean }) {
+  return (
+    <Box
+      sx={{
+        flex: 1, height: '1.5px', mx: 1.5, mt: '-20px',
+        background: done
+          ? 'linear-gradient(90deg, #059669 0%, #34d399 100%)'
+          : 'rgba(255,255,255,0.08)',
+        transition: 'background 0.4s ease',
+      }}
+    />
+  );
+}
+
+// ─── Section header pill ──────────────────────────────────────────────────────
+function SectionLabel({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 2.5 }}>
+      <Box
+        sx={{
+          width: 30, height: 30, borderRadius: '8px',
+          background: 'linear-gradient(135deg, rgba(59,130,246,0.18) 0%, rgba(139,92,246,0.18) 100%)',
+          border: '1px solid rgba(99,160,255,0.18)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        {icon}
+      </Box>
+      <Typography variant="subtitle2" fontWeight={700} sx={{ color: C.text }}>
+        {text}
+      </Typography>
+    </Box>
+  );
+}
+
+// ─── Skill tag ────────────────────────────────────────────────────────────────
+function SkillTag({ label }: { label: string }) {
+  return (
+    <Box
+      sx={{
+        px: 1.25, py: 0.3, borderRadius: '6px',
+        bgcolor: 'rgba(96,165,250,0.08)',
+        border: '1px solid rgba(96,165,250,0.16)',
+      }}
+    >
+      <Typography sx={{ fontSize: '0.68rem', color: C.blue, fontWeight: 500 }}>{label}</Typography>
+    </Box>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function ApplicantPortal() {
   const [activeStep, setActiveStep] = useState(0);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -27,7 +157,6 @@ export default function ApplicantPortal() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState('');
   const [resultData, setResultData] = useState<{ message: string; job_title: string } | null>(null);
-
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -96,211 +225,303 @@ export default function ApplicantPortal() {
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#f8fafc' }}>
-      {/* Navbar */}
-      <AppBar
-        position="sticky"
-        elevation={0}
-        sx={{ bgcolor: 'white', borderBottom: '1px solid', borderColor: 'divider' }}
+    <Box
+      sx={{
+        minHeight: '100vh',
+        bgcolor: C.bg,
+        color: C.text,
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* ── Ambient background orbs ── */}
+      <Box
+        sx={{
+          position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
+          '&::before': {
+            content: '""', position: 'absolute',
+            top: '-20%', right: '-10%',
+            width: '60%', height: '65%',
+            background: 'radial-gradient(circle, rgba(109,40,217,0.14) 0%, transparent 65%)',
+            filter: 'blur(40px)',
+          },
+          '&::after': {
+            content: '""', position: 'absolute',
+            bottom: '5%', left: '-8%',
+            width: '50%', height: '50%',
+            background: 'radial-gradient(circle, rgba(37,99,235,0.1) 0%, transparent 65%)',
+            filter: 'blur(50px)',
+          },
+        }}
+      />
+
+      {/* ── NAVBAR ─────────────────────────────────────── */}
+      <Box
+        sx={{
+          position: 'sticky', top: 0, zIndex: 200,
+          bgcolor: 'rgba(7,7,10,0.8)',
+          backdropFilter: 'blur(24px)',
+          borderBottom: `1px solid ${C.border}`,
+        }}
       >
         <Container maxWidth="lg">
-          <Toolbar disableGutters sx={{ gap: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', py: 1.5, gap: 1.5 }}>
             <Box
               sx={{
-                width: 36,
-                height: 36,
-                borderRadius: 2,
+                width: 34, height: 34, borderRadius: '9px', flexShrink: 0,
                 background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 0 18px rgba(96,165,250,0.3)',
               }}
             >
-              <LeaderboardIcon sx={{ color: 'white', fontSize: 20 }} />
+              <LeaderboardIcon sx={{ color: 'white', fontSize: 18 }} />
             </Box>
             <Typography
-              variant="h6"
-              fontWeight={800}
+              variant="h6" fontWeight={900}
               sx={{
-                background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+                flex: 1,
+                background: 'linear-gradient(135deg, #93c5fd 0%, #c4b5fd 100%)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
-                flex: 1,
+                letterSpacing: '-0.3px',
               }}
             >
               SmartRecruit
             </Typography>
-            <Chip
-              label="Portal Pelamar"
-              color="primary"
-              variant="outlined"
-              size="small"
-              sx={{ fontWeight: 600 }}
-            />
-          </Toolbar>
+            <Box
+              sx={{
+                px: 1.5, py: 0.5, borderRadius: '20px',
+                bgcolor: 'rgba(96,165,250,0.1)',
+                border: '1px solid rgba(96,165,250,0.2)',
+              }}
+            >
+              <Typography variant="caption" sx={{ color: C.blue, fontWeight: 700 }}>
+                Portal Pelamar
+              </Typography>
+            </Box>
+          </Box>
         </Container>
-      </AppBar>
+      </Box>
 
-      {/* Hero */}
-      <Box
-        sx={{
-          background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 55%, #7c3aed 100%)',
-          py: { xs: 6, md: 8 },
-          position: 'relative',
-          overflow: 'hidden',
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            inset: 0,
-            backgroundImage:
-              'radial-gradient(circle at 15% 60%, rgba(255,255,255,0.07) 0%, transparent 55%), radial-gradient(circle at 85% 15%, rgba(255,255,255,0.05) 0%, transparent 45%)',
-          },
-        }}
-      >
-        <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
-          <Typography
-            variant="h3"
-            fontWeight={800}
-            color="white"
-            sx={{ mb: 1.5, lineHeight: 1.2, fontSize: { xs: '2rem', md: '2.5rem' } }}
+      {/* ── HERO ───────────────────────────────────────── */}
+      <Box sx={{ position: 'relative', zIndex: 1, pt: { xs: 8, md: 14 }, pb: { xs: 7, md: 10 } }}>
+        <Container maxWidth="lg">
+          {/* Badge */}
+          <Box
+            sx={{
+              display: 'inline-flex', alignItems: 'center', gap: 0.75,
+              px: 1.75, py: 0.65, borderRadius: '20px', mb: 3.5,
+              bgcolor: 'rgba(167,139,250,0.1)',
+              border: '1px solid rgba(167,139,250,0.22)',
+            }}
           >
-            Portal Lamaran Kerja
+            <AutoAwesome sx={{ fontSize: 13, color: C.purple }} />
+            <Typography variant="caption" sx={{ color: C.purple, fontWeight: 700, letterSpacing: '0.06em' }}>
+              AI-POWERED RECRUITMENT
+            </Typography>
+          </Box>
+
+          {/* Title */}
+          <Typography
+            variant="h1" fontWeight={900}
+            sx={{
+              mb: 2.5, lineHeight: 1.05,
+              fontSize: { xs: '2.4rem', sm: '3.2rem', md: '4.2rem' },
+              background: 'linear-gradient(140deg, #ffffff 0%, #bfdbfe 40%, #e9d5ff 80%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              letterSpacing: '-1px',
+            }}
+          >
+            Mulai Karir<br />Terbaikmu
           </Typography>
+
           <Typography
             variant="h6"
-            sx={{ color: 'rgba(255,255,255,0.85)', mb: 4, fontWeight: 400, maxWidth: 560 }}
+            sx={{
+              color: C.textMuted, fontWeight: 400, mb: 6,
+              maxWidth: 500, lineHeight: 1.8,
+              fontSize: { xs: '1rem', md: '1.1rem' },
+            }}
           >
-            Pilih posisi yang sesuai dan upload CV kamu. Proses seleksi kami menggunakan teknologi AI
-            untuk menemukan kandidat terbaik.
+            Upload CV kamu dalam hitungan menit. Sistem AI kami akan mencocokkan
+            profil terbaikmu dengan posisi yang tersedia.
           </Typography>
+
+          {/* Stats row */}
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
             {[
-              { label: 'Posisi Tersedia', value: loadingJobs ? '...' : `${jobs.length}` },
-              { label: 'Seleksi AI', value: 'Otomatis' },
-              { label: 'Waktu Review', value: '3–5 Hari' },
-            ].map((stat) => (
+              { icon: <Work sx={{ fontSize: 15, color: C.blue }} />, v: loadingJobs ? '...' : `${jobs.length}`, l: 'Posisi tersedia', glow: C.blue },
+              { icon: <Bolt sx={{ fontSize: 15, color: C.purple }} />, v: 'AI Otomatis', l: 'Seleksi cerdas', glow: C.purple },
+              { icon: <Shield sx={{ fontSize: 15, color: C.green }} />, v: 'Terenkripsi', l: 'Data aman', glow: C.green },
+            ].map((s, i) => (
               <Box
-                key={stat.label}
+                key={i}
                 sx={{
-                  bgcolor: 'rgba(255,255,255,0.12)',
+                  display: 'flex', alignItems: 'center', gap: 1.5,
+                  px: 2, py: 1.25, borderRadius: '12px',
+                  bgcolor: C.surface, border: `1px solid ${C.border}`,
                   backdropFilter: 'blur(8px)',
-                  borderRadius: 2.5,
-                  px: 2.5,
-                  py: 1.5,
-                  border: '1px solid rgba(255,255,255,0.18)',
-                  minWidth: 100,
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    borderColor: `${s.glow}33`,
+                    bgcolor: `${s.glow}08`,
+                  },
                 }}
               >
-                <Typography variant="h6" fontWeight={800} color="white" sx={{ lineHeight: 1 }}>
-                  {stat.value}
-                </Typography>
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.72)', mt: 0.25, display: 'block' }}>
-                  {stat.label}
-                </Typography>
+                <Box
+                  sx={{
+                    width: 30, height: 30, borderRadius: '8px',
+                    bgcolor: 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${C.border}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  {s.icon}
+                </Box>
+                <Box>
+                  <Typography sx={{ fontSize: '0.875rem', fontWeight: 800, color: C.text, lineHeight: 1 }}>
+                    {s.v}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.72rem', color: C.textDim }}>
+                    {s.l}
+                  </Typography>
+                </Box>
               </Box>
             ))}
           </Box>
         </Container>
       </Box>
 
-      {/* Stepper */}
-      <Box sx={{ bgcolor: 'white', borderBottom: '1px solid', borderColor: 'divider', py: 3 }}>
-        <Container maxWidth="md">
-          <Stepper activeStep={activeStep} alternativeLabel>
-            {STEPS.map((label) => (
-              <Step key={label}>
-                <StepLabel>{label}</StepLabel>
-              </Step>
-            ))}
-          </Stepper>
+      {/* ── STEPPER ────────────────────────────────────── */}
+      <Box
+        sx={{
+          position: 'relative', zIndex: 1,
+          bgcolor: 'rgba(255,255,255,0.018)',
+          borderTop: `1px solid ${C.border}`,
+          borderBottom: `1px solid ${C.border}`,
+          py: 3,
+        }}
+      >
+        <Container maxWidth="sm">
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <StepDot index={1} label="Pilih Posisi" active={activeStep === 0} done={activeStep > 0} />
+            <StepLine done={activeStep > 0} />
+            <StepDot index={2} label="Data & CV" active={activeStep === 1} done={activeStep > 1} />
+            <StepLine done={activeStep > 1} />
+            <StepDot index={3} label="Selesai" active={activeStep === 2} done={false} />
+          </Box>
         </Container>
       </Box>
 
-      <Container maxWidth="lg" sx={{ py: 5, pb: 10 }}>
-        {/* ─── STEP 0: Pilih Posisi ─── */}
+      {/* ── CONTENT ────────────────────────────────────── */}
+      <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1, py: 6, pb: 14 }}>
+
+        {/* ═══ STEP 0: Job List ═══════════════════════════ */}
         {activeStep === 0 && (
           <Box>
-            <Typography variant="h5" fontWeight={700} sx={{ mb: 0.75 }}>
+            <Typography variant="h5" fontWeight={800} sx={{ color: C.text, mb: 0.75 }}>
               Pilih Posisi yang Kamu Minati
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-              Klik tombol <strong>Lamar</strong> pada posisi yang ingin kamu lamar untuk melanjutkan.
+            <Typography variant="body2" sx={{ color: C.textMuted, mb: 5 }}>
+              Klik <Box component="span" sx={{ color: C.blue, fontWeight: 600 }}>Lamar</Box> pada
+              posisi yang ingin kamu lamar untuk melanjutkan
             </Typography>
 
             {loadingJobs ? (
               <Grid container spacing={3}>
                 {[...Array(4)].map((_, i) => (
                   <Grid size={{ xs: 12, md: 6 }} key={i}>
-                    <Skeleton variant="rounded" height={210} sx={{ borderRadius: 3 }} />
+                    <Skeleton
+                      variant="rounded" height={230}
+                      sx={{ borderRadius: '16px', bgcolor: 'rgba(255,255,255,0.04)' }}
+                    />
                   </Grid>
                 ))}
               </Grid>
             ) : jobs.length === 0 ? (
-              <Box sx={{ textAlign: 'center', py: 12 }}>
-                <Work sx={{ fontSize: 72, color: 'action.disabled' }} />
-                <Typography variant="h6" color="text.secondary" sx={{ mt: 2 }}>
-                  Belum ada posisi yang tersedia saat ini
+              <Box sx={{ textAlign: 'center', py: 14 }}>
+                <Work sx={{ fontSize: 64, color: C.textDim }} />
+                <Typography variant="h6" sx={{ color: C.textMuted, mt: 2 }}>
+                  Belum ada posisi tersedia saat ini
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                  Silakan cek kembali nanti atau hubungi tim HR kami.
+                <Typography variant="body2" sx={{ color: C.textDim, mt: 1 }}>
+                  Cek kembali nanti atau hubungi tim HR kami
                 </Typography>
               </Box>
             ) : (
               <Grid container spacing={3}>
                 {jobs.map((job) => (
                   <Grid size={{ xs: 12, md: 6 }} key={job.id}>
-                    <Card
-                      elevation={0}
+                    <Box
                       sx={{
-                        border: '2px solid',
-                        borderColor: 'divider',
-                        borderRadius: 3,
+                        bgcolor: C.surface, borderRadius: '16px',
+                        border: `1px solid ${C.border}`,
+                        p: '1px', // for gradient border trick
                         height: '100%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        transition: 'all 0.2s ease',
+                        transition: 'all 0.25s ease',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        cursor: 'pointer',
                         '&:hover': {
-                          borderColor: 'primary.main',
+                          '& .card-inner': {
+                            bgcolor: C.surfaceHover,
+                          },
+                          boxShadow: '0 0 0 1px rgba(96,165,250,0.25), 0 16px 48px rgba(0,0,0,0.6)',
                           transform: 'translateY(-3px)',
-                          boxShadow: '0 10px 28px rgba(59,130,246,0.14)',
                         },
+                        // Top gradient accent on hover
+                        '&::before': {
+                          content: '""',
+                          position: 'absolute', top: 0, left: 0, right: 0, height: '2px',
+                          background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)',
+                          opacity: 0, transition: 'opacity 0.25s',
+                          zIndex: 2,
+                        },
+                        '&:hover::before': { opacity: 1 },
                       }}
                     >
-                      <CardContent sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        {/* Header */}
-                        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
-                          <Avatar
+                      <Box
+                        className="card-inner"
+                        sx={{
+                          p: 3, height: '100%', borderRadius: '15px',
+                          bgcolor: C.surface,
+                          display: 'flex', flexDirection: 'column',
+                          transition: 'bgcolor 0.25s',
+                        }}
+                      >
+                        {/* Card header */}
+                        <Box sx={{ display: 'flex', gap: 2, mb: 2.5 }}>
+                          <Box
                             sx={{
-                              background: 'linear-gradient(135deg, #dbeafe 0%, #ede9fe 100%)',
-                              width: 48,
-                              height: 48,
-                              flexShrink: 0,
+                              width: 46, height: 46, borderRadius: '12px', flexShrink: 0,
+                              background: 'linear-gradient(135deg, rgba(59,130,246,0.18) 0%, rgba(139,92,246,0.18) 100%)',
+                              border: '1px solid rgba(96,165,250,0.14)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
                             }}
                           >
-                            <BusinessCenter sx={{ color: '#3b82f6', fontSize: 24 }} />
-                          </Avatar>
+                            <BusinessCenter sx={{ color: C.blue, fontSize: 22 }} />
+                          </Box>
                           <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography variant="h6" fontWeight={700} sx={{ lineHeight: 1.3 }}>
+                            <Typography
+                              variant="subtitle1" fontWeight={800}
+                              sx={{ color: C.text, lineHeight: 1.25, mb: 0.25 }}
+                            >
                               {job.title}
                             </Typography>
-                            <Typography variant="body2" color="primary.main" fontWeight={600}>
+                            <Typography variant="caption" sx={{ color: C.blue, fontWeight: 600 }}>
                               {job.department}
                             </Typography>
                           </Box>
                         </Box>
 
-                        {/* Desc */}
+                        {/* Description */}
                         <Typography
                           variant="body2"
-                          color="text.secondary"
                           sx={{
-                            mb: 2,
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                            flex: 1,
+                            color: C.textMuted, mb: 2.5, flex: 1, lineHeight: 1.75,
+                            display: '-webkit-box', WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical', overflow: 'hidden',
                           }}
                         >
                           {job.description}
@@ -308,42 +529,44 @@ export default function ApplicantPortal() {
 
                         {/* Skills */}
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 2.5 }}>
-                          {job.skills_required?.slice(0, 4).map((skill) => (
-                            <Chip
-                              key={skill}
-                              label={skill}
-                              size="small"
-                              variant="outlined"
-                              color="primary"
-                              sx={{ height: 22, fontSize: '0.7rem' }}
-                            />
+                          {job.skills_required?.slice(0, 4).map((s) => (
+                            <SkillTag key={s} label={s} />
                           ))}
                           {(job.skills_required?.length ?? 0) > 4 && (
-                            <Chip
-                              label={`+${(job.skills_required?.length ?? 0) - 4} lainnya`}
-                              size="small"
-                              sx={{ height: 22, fontSize: '0.7rem', bgcolor: 'grey.100' }}
-                            />
+                            <Box
+                              sx={{
+                                px: 1.25, py: 0.3, borderRadius: '6px',
+                                bgcolor: 'rgba(255,255,255,0.05)',
+                                border: `1px solid ${C.border}`,
+                              }}
+                            >
+                              <Typography sx={{ fontSize: '0.68rem', color: C.textDim }}>
+                                +{(job.skills_required?.length ?? 0) - 4}
+                              </Typography>
+                            </Box>
                           )}
                         </Box>
 
-                        <Divider sx={{ mb: 2 }} />
-
                         {/* Footer */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Box
+                          sx={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            pt: 2, borderTop: `1px solid ${C.border}`,
+                          }}
+                        >
                           <Box sx={{ display: 'flex', gap: 2 }}>
                             {job.min_experience_years > 0 && (
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <Work sx={{ fontSize: 14, color: 'text.secondary' }} />
-                                <Typography variant="caption" color="text.secondary">
+                                <Work sx={{ fontSize: 13, color: C.textDim }} />
+                                <Typography sx={{ fontSize: '0.72rem', color: C.textDim }}>
                                   {job.min_experience_years}+ thn
                                 </Typography>
                               </Box>
                             )}
                             {job.education_level && (
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <School sx={{ fontSize: 14, color: 'text.secondary' }} />
-                                <Typography variant="caption" color="text.secondary">
+                                <School sx={{ fontSize: 13, color: C.textDim }} />
+                                <Typography sx={{ fontSize: '0.72rem', color: C.textDim }}>
                                   {job.education_level}
                                 </Typography>
                               </Box>
@@ -352,21 +575,25 @@ export default function ApplicantPortal() {
                           <Button
                             variant="contained"
                             size="small"
-                            endIcon={<ArrowForward />}
+                            endIcon={<ArrowForward sx={{ fontSize: 14 }} />}
                             onClick={() => handleSelectJob(job)}
                             sx={{
-                              borderRadius: 2,
-                              background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+                              background: 'linear-gradient(135deg, #3b82f6 0%, #7c3aed 100%)',
+                              borderRadius: '8px', px: 2, py: 0.7,
+                              fontSize: '0.78rem', fontWeight: 700,
+                              boxShadow: '0 4px 14px rgba(59,130,246,0.35)',
+                              border: '1px solid rgba(96,165,250,0.25)',
                               '&:hover': {
-                                background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
+                                background: 'linear-gradient(135deg, #2563eb 0%, #6d28d9 100%)',
+                                boxShadow: '0 4px 20px rgba(59,130,246,0.5)',
                               },
                             }}
                           >
                             Lamar
                           </Button>
                         </Box>
-                      </CardContent>
-                    </Card>
+                      </Box>
+                    </Box>
                   </Grid>
                 ))}
               </Grid>
@@ -374,80 +601,79 @@ export default function ApplicantPortal() {
           </Box>
         )}
 
-        {/* ─── STEP 1: Data & Upload ─── */}
+        {/* ═══ STEP 1: Form & Upload ══════════════════════ */}
         {activeStep === 1 && selectedJob && (
           <Grid container spacing={4}>
-            {/* Sidebar: Job Summary */}
+            {/* ── Sidebar ── */}
             <Grid size={{ xs: 12, md: 4 }}>
-              <Paper
-                elevation={0}
+              <Box
                 sx={{
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 3,
-                  p: 3,
-                  position: { md: 'sticky' },
-                  top: 90,
+                  bgcolor: C.surface, border: `1px solid ${C.border}`,
+                  borderRadius: '16px', p: 3,
+                  position: { md: 'sticky' }, top: 90,
+                  // Top accent
+                  '&::before': {
+                    content: '""', position: 'absolute',
+                    top: 0, left: 0, right: 0, height: '2px',
+                    background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)',
+                    borderRadius: '16px 16px 0 0',
+                  },
+                  position: 'relative', overflow: 'hidden',
                 }}
               >
                 <Typography
-                  variant="overline"
-                  sx={{ color: 'text.secondary', letterSpacing: 1.5, fontSize: '0.7rem' }}
+                  sx={{
+                    fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.15em',
+                    color: C.textDim, textTransform: 'uppercase', mb: 2,
+                  }}
                 >
-                  Posisi yang Dipilih
+                  Posisi Dipilih
                 </Typography>
 
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 1.5, mb: 2 }}>
-                  <Avatar
+                <Box sx={{ display: 'flex', gap: 1.5, mb: 3 }}>
+                  <Box
                     sx={{
-                      background: 'linear-gradient(135deg, #dbeafe 0%, #ede9fe 100%)',
-                      width: 44,
-                      height: 44,
+                      width: 44, height: 44, borderRadius: '10px', flexShrink: 0,
+                      background: 'linear-gradient(135deg, rgba(59,130,246,0.18) 0%, rgba(139,92,246,0.18) 100%)',
+                      border: '1px solid rgba(96,165,250,0.15)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}
                   >
-                    <BusinessCenter sx={{ color: '#3b82f6', fontSize: 22 }} />
-                  </Avatar>
+                    <BusinessCenter sx={{ color: C.blue, fontSize: 22 }} />
+                  </Box>
                   <Box>
-                    <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.3 }}>
+                    <Typography variant="subtitle1" fontWeight={800} sx={{ color: C.text, lineHeight: 1.3 }}>
                       {selectedJob.title}
                     </Typography>
-                    <Typography variant="body2" color="primary.main" fontWeight={600}>
+                    <Typography sx={{ fontSize: '0.78rem', color: C.blue, fontWeight: 600 }}>
                       {selectedJob.department}
                     </Typography>
                   </Box>
                 </Box>
 
-                <Divider sx={{ mb: 2 }} />
+                <Box sx={{ bgcolor: C.border, height: '1px', mb: 2.5 }} />
 
-                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
-                  Skills yang Dibutuhkan
+                <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.15em', color: C.textDim, textTransform: 'uppercase', mb: 1.5 }}>
+                  Skills Dibutuhkan
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 2.5 }}>
-                  {selectedJob.skills_required?.map((skill) => (
-                    <Chip
-                      key={skill}
-                      label={skill}
-                      size="small"
-                      color="primary"
-                      sx={{ height: 24, fontSize: '0.7rem' }}
-                    />
-                  ))}
+                  {selectedJob.skills_required?.map((s) => <SkillTag key={s} label={s} />)}
                 </Box>
 
                 {(selectedJob.min_experience_years > 0 || selectedJob.education_level) && (
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2.5 }}>
                     {selectedJob.min_experience_years > 0 && (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Work sx={{ fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="body2" color="text.secondary">
+                        <Work sx={{ fontSize: 14, color: C.textDim }} />
+                        <Typography sx={{ fontSize: '0.78rem', color: C.textMuted }}>
                           Min. {selectedJob.min_experience_years} tahun pengalaman
                         </Typography>
                       </Box>
                     )}
                     {selectedJob.education_level && (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <School sx={{ fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="body2" color="text.secondary">
+                        <School sx={{ fontSize: 14, color: C.textDim }} />
+                        <Typography sx={{ fontSize: '0.78rem', color: C.textMuted }}>
                           {selectedJob.education_level}
                         </Typography>
                       </Box>
@@ -457,118 +683,101 @@ export default function ApplicantPortal() {
 
                 {selectedJob.requirements && (
                   <>
-                    <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
+                    <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.15em', color: C.textDim, textTransform: 'uppercase', mb: 1 }}>
                       Persyaratan
                     </Typography>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ fontSize: '0.78rem', whiteSpace: 'pre-line', lineHeight: 1.7 }}
-                    >
+                    <Typography sx={{ fontSize: '0.78rem', color: C.textMuted, whiteSpace: 'pre-line', lineHeight: 1.8 }}>
                       {selectedJob.requirements}
                     </Typography>
                   </>
                 )}
 
-                <Box sx={{ mt: 3, pt: 2.5, borderTop: '1px solid', borderColor: 'divider' }}>
+                <Box sx={{ pt: 2.5, mt: 2.5, borderTop: `1px solid ${C.border}` }}>
                   <Button
-                    variant="text"
                     size="small"
-                    startIcon={<ArrowBack />}
+                    startIcon={<ArrowBack sx={{ fontSize: 14 }} />}
                     onClick={() => setActiveStep(0)}
-                    color="inherit"
-                    sx={{ color: 'text.secondary' }}
+                    sx={{ color: C.textDim, '&:hover': { color: C.text, bgcolor: 'rgba(255,255,255,0.05)' } }}
                   >
                     Ganti Posisi
                   </Button>
                 </Box>
-              </Paper>
+              </Box>
             </Grid>
 
-            {/* Main: Form */}
+            {/* ── Form Panel ── */}
             <Grid size={{ xs: 12, md: 8 }}>
-              <Paper
-                elevation={0}
-                sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3, p: { xs: 3, md: 4 } }}
+              <Box
+                sx={{
+                  bgcolor: C.surface, border: `1px solid ${C.border}`,
+                  borderRadius: '16px', p: { xs: 3, md: 4 },
+                }}
               >
-                <Typography variant="h5" fontWeight={700} sx={{ mb: 0.5 }}>
+                <Typography variant="h5" fontWeight={800} sx={{ color: C.text, mb: 0.5 }}>
                   Data Diri & Upload CV
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-                  Isi data diri kamu dengan benar dan upload CV dalam format PDF atau DOCX.
+                <Typography variant="body2" sx={{ color: C.textMuted, mb: 4 }}>
+                  Lengkapi form di bawah. CV dalam format PDF atau DOCX (maks. 10MB).
                 </Typography>
 
                 {error && (
-                  <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }} onClose={() => setError('')}>
+                  <Alert
+                    severity="error"
+                    onClose={() => setError('')}
+                    sx={{
+                      mb: 3, borderRadius: '10px',
+                      bgcolor: 'rgba(248,113,113,0.08)',
+                      border: '1px solid rgba(248,113,113,0.2)',
+                      color: '#fca5a5',
+                      '& .MuiAlert-icon': { color: C.red },
+                      '& .MuiAlert-action button': { color: C.textDim },
+                    }}
+                  >
                     {error}
                   </Alert>
                 )}
 
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3.5 }}>
-                  {/* Section: Informasi Pribadi */}
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {/* Personal Info */}
                   <Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2.5 }}>
-                      <Box
-                        sx={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 1.5,
-                          background: 'linear-gradient(135deg, #dbeafe 0%, #ede9fe 100%)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <Person sx={{ fontSize: 18, color: '#3b82f6' }} />
-                      </Box>
-                      <Typography variant="subtitle1" fontWeight={700}>
-                        Informasi Pribadi
-                      </Typography>
-                    </Box>
-
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <SectionLabel
+                      icon={<Person sx={{ fontSize: 15, color: C.blue }} />}
+                      text="Informasi Pribadi"
+                    />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
                       <TextField
-                        label="Nama Lengkap"
-                        fullWidth
-                        required
+                        label="Nama Lengkap" fullWidth required
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         placeholder="Masukkan nama lengkap sesuai KTP"
+                        sx={inputSx}
                         slotProps={{
-                          input: {
-                            startAdornment: <Person sx={{ color: 'action.active', mr: 1, fontSize: 20 }} />,
-                          },
+                          input: { startAdornment: <Person sx={{ mr: 1, fontSize: 18 }} /> },
                         }}
                       />
-                      <Grid container spacing={2}>
+                      <Grid container spacing={2.5}>
                         <Grid size={{ xs: 12, sm: 6 }}>
                           <TextField
-                            label="Email Aktif"
-                            type="email"
-                            fullWidth
-                            required
+                            label="Email Aktif" type="email" fullWidth required
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="contoh@email.com"
-                            helperText="Notifikasi seleksi dikirim ke email ini"
+                            helperText="Notifikasi dikirim ke email ini"
+                            sx={inputSx}
                             slotProps={{
-                              input: {
-                                startAdornment: <Email sx={{ color: 'action.active', mr: 1, fontSize: 20 }} />,
-                              },
+                              input: { startAdornment: <Email sx={{ mr: 1, fontSize: 18 }} /> },
                             }}
                           />
                         </Grid>
                         <Grid size={{ xs: 12, sm: 6 }}>
                           <TextField
-                            label="Nomor Telepon"
-                            fullWidth
+                            label="Nomor Telepon" fullWidth
                             value={phone}
                             onChange={(e) => setPhone(e.target.value)}
                             placeholder="+62 812 xxxx xxxx"
+                            sx={inputSx}
                             slotProps={{
-                              input: {
-                                startAdornment: <Phone sx={{ color: 'action.active', mr: 1, fontSize: 20 }} />,
-                              },
+                              input: { startAdornment: <Phone sx={{ mr: 1, fontSize: 18 }} /> },
                             }}
                           />
                         </Grid>
@@ -576,63 +785,54 @@ export default function ApplicantPortal() {
                     </Box>
                   </Box>
 
-                  <Divider />
+                  <Box sx={{ bgcolor: C.border, height: '1px' }} />
 
-                  {/* Section: Upload CV */}
+                  {/* Upload */}
                   <Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2.5 }}>
-                      <Box
-                        sx={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 1.5,
-                          background: 'linear-gradient(135deg, #dbeafe 0%, #ede9fe 100%)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <Description sx={{ fontSize: 18, color: '#3b82f6' }} />
-                      </Box>
-                      <Typography variant="subtitle1" fontWeight={700}>
-                        Upload CV / Berkas Lamaran
-                      </Typography>
-                    </Box>
+                    <SectionLabel
+                      icon={<Description sx={{ fontSize: 15, color: C.blue }} />}
+                      text="Upload CV / Berkas"
+                    />
 
                     {file ? (
                       <Box
                         sx={{
-                          border: '2px solid #22c55e',
-                          borderRadius: 2.5,
-                          p: 2.5,
-                          bgcolor: '#f0fdf4',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: 2,
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2,
+                          p: 2.5, borderRadius: '12px',
+                          bgcolor: 'rgba(52,211,153,0.06)',
+                          border: '1px solid rgba(52,211,153,0.18)',
                         }}
                       >
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <Avatar sx={{ bgcolor: '#dcfce7', width: 44, height: 44 }}>
-                            <InsertDriveFile sx={{ color: '#16a34a' }} />
-                          </Avatar>
+                          <Box
+                            sx={{
+                              width: 42, height: 42, borderRadius: '10px',
+                              bgcolor: 'rgba(52,211,153,0.1)',
+                              border: '1px solid rgba(52,211,153,0.2)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}
+                          >
+                            <InsertDriveFile sx={{ color: C.green, fontSize: 22 }} />
+                          </Box>
                           <Box>
-                            <Typography variant="body2" fontWeight={700}>
+                            <Typography sx={{ fontSize: '0.875rem', fontWeight: 700, color: C.text }}>
                               {file.name}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {(file.size / 1024 / 1024).toFixed(2)} MB •{' '}
-                              {file.name.split('.').pop()?.toUpperCase()}
+                            <Typography sx={{ fontSize: '0.72rem', color: C.textDim }}>
+                              {(file.size / 1024 / 1024).toFixed(2)} MB · {file.name.split('.').pop()?.toUpperCase()}
                             </Typography>
                           </Box>
                         </Box>
                         <Button
                           size="small"
-                          color="error"
-                          variant="outlined"
-                          startIcon={<Close />}
+                          startIcon={<Close sx={{ fontSize: 13 }} />}
                           onClick={() => setFile(null)}
-                          sx={{ borderRadius: 2, flexShrink: 0 }}
+                          sx={{
+                            color: C.red, flexShrink: 0,
+                            border: '1px solid rgba(248,113,113,0.2)',
+                            borderRadius: '8px',
+                            '&:hover': { bgcolor: 'rgba(248,113,113,0.08)' },
+                          }}
                         >
                           Hapus
                         </Button>
@@ -641,227 +841,215 @@ export default function ApplicantPortal() {
                       <Box
                         {...getRootProps()}
                         sx={{
-                          border: '2px dashed',
-                          borderColor: isDragActive ? 'primary.main' : '#d1d5db',
-                          borderRadius: 3,
-                          p: { xs: 4, md: 6 },
+                          border: '1.5px dashed',
+                          borderColor: isDragActive ? C.blue : 'rgba(255,255,255,0.1)',
+                          borderRadius: '14px',
+                          p: { xs: 4.5, md: 6 },
                           textAlign: 'center',
                           cursor: 'pointer',
-                          bgcolor: isDragActive ? '#eff6ff' : '#fafafa',
+                          bgcolor: isDragActive ? 'rgba(96,165,250,0.05)' : 'rgba(255,255,255,0.015)',
                           transition: 'all 0.2s ease',
-                          '&:hover': { borderColor: 'primary.main', bgcolor: '#eff6ff' },
+                          boxShadow: isDragActive ? '0 0 0 5px rgba(96,165,250,0.07), inset 0 0 30px rgba(96,165,250,0.04)' : 'none',
+                          '&:hover': {
+                            borderColor: 'rgba(96,165,250,0.3)',
+                            bgcolor: 'rgba(96,165,250,0.03)',
+                          },
                         }}
                       >
                         <input {...getInputProps()} />
                         <Box
                           sx={{
-                            width: 72,
-                            height: 72,
-                            borderRadius: '50%',
+                            width: 68, height: 68, borderRadius: '50%',
                             background: isDragActive
-                              ? 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)'
-                              : 'linear-gradient(135deg, #dbeafe 0%, #ede9fe 100%)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            mx: 'auto',
-                            mb: 2.5,
+                              ? 'linear-gradient(135deg, #3b82f6 0%, #7c3aed 100%)'
+                              : 'rgba(255,255,255,0.04)',
+                            border: `1px solid ${isDragActive ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            mx: 'auto', mb: 3,
                             transition: 'all 0.2s ease',
+                            boxShadow: isDragActive ? '0 0 32px rgba(96,165,250,0.35)' : 'none',
                           }}
                         >
-                          <CloudUpload
-                            sx={{
-                              fontSize: 34,
-                              color: isDragActive ? 'white' : '#3b82f6',
-                            }}
-                          />
+                          <CloudUpload sx={{ fontSize: 30, color: isDragActive ? 'white' : C.textDim, transition: 'color 0.2s' }} />
                         </Box>
-                        <Typography variant="h6" fontWeight={700} sx={{ mb: 0.75 }}>
-                          {isDragActive ? 'Lepaskan file di sini...' : 'Seret & lepas CV kamu di sini'}
+                        <Typography sx={{ fontSize: '1rem', fontWeight: 800, color: C.text, mb: 0.75 }}>
+                          {isDragActive ? 'Lepaskan file di sini...' : 'Seret & lepas CV kamu'}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
+                        <Typography sx={{ fontSize: '0.85rem', color: C.textMuted, mb: 3 }}>
                           atau{' '}
-                          <Typography
-                            component="span"
-                            color="primary.main"
-                            fontWeight={600}
-                            sx={{ cursor: 'pointer' }}
-                          >
+                          <Box component="span" sx={{ color: C.blue, fontWeight: 700, cursor: 'pointer' }}>
                             klik untuk memilih file
-                          </Typography>
+                          </Box>
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
-                          <Chip label="PDF" size="small" variant="outlined" sx={{ borderRadius: 1 }} />
-                          <Chip label="DOCX" size="small" variant="outlined" sx={{ borderRadius: 1 }} />
-                          <Chip label="Maks. 10MB" size="small" variant="outlined" sx={{ borderRadius: 1 }} />
+                          {['PDF', 'DOCX', 'Maks. 10MB'].map((t) => (
+                            <Box
+                              key={t}
+                              sx={{
+                                px: 1.5, py: 0.35, borderRadius: '6px',
+                                bgcolor: 'rgba(255,255,255,0.04)',
+                                border: `1px solid ${C.border}`,
+                              }}
+                            >
+                              <Typography sx={{ fontSize: '0.68rem', color: C.textDim }}>{t}</Typography>
+                            </Box>
+                          ))}
                         </Box>
                       </Box>
                     )}
                   </Box>
 
-                  {/* Progress */}
+                  {/* Progress bar */}
                   {submitting && (
                     <Box>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
-                        <Typography variant="caption" color="text.secondary">
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography sx={{ fontSize: '0.78rem', color: C.textMuted }}>
                           Mengirim lamaran...
                         </Typography>
-                        <Typography variant="caption" color="primary.main" fontWeight={600}>
+                        <Typography sx={{ fontSize: '0.78rem', color: C.blue, fontWeight: 700 }}>
                           {uploadProgress}%
                         </Typography>
                       </Box>
                       <LinearProgress
                         variant="determinate"
                         value={uploadProgress}
-                        sx={{ borderRadius: 1, height: 6 }}
+                        sx={{
+                          height: 5, borderRadius: '3px',
+                          bgcolor: 'rgba(255,255,255,0.06)',
+                          '& .MuiLinearProgress-bar': {
+                            background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)',
+                            borderRadius: '3px',
+                          },
+                        }}
                       />
                     </Box>
                   )}
 
-                  {/* Submit Button */}
+                  {/* Submit button */}
                   <Button
-                    variant="contained"
-                    size="large"
-                    fullWidth
+                    variant="contained" size="large" fullWidth
                     disabled={submitting || !file || !fullName || !email}
                     onClick={handleSubmit}
                     sx={{
-                      py: 1.75,
-                      borderRadius: 2.5,
-                      background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-                      fontSize: '1rem',
-                      fontWeight: 700,
-                      letterSpacing: 0.3,
-                      boxShadow: '0 6px 20px rgba(59,130,246,0.35)',
+                      py: 1.8, borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #3b82f6 0%, #7c3aed 100%)',
+                      fontSize: '0.95rem', fontWeight: 800, letterSpacing: '0.02em',
+                      boxShadow: '0 8px 28px rgba(59,130,246,0.32)',
+                      border: '1px solid rgba(96,165,250,0.28)',
                       '&:hover': {
-                        background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
-                        boxShadow: '0 8px 28px rgba(59,130,246,0.45)',
+                        background: 'linear-gradient(135deg, #2563eb 0%, #6d28d9 100%)',
+                        boxShadow: '0 8px 36px rgba(59,130,246,0.48)',
                       },
-                      '&:disabled': {
-                        background: '#e5e7eb',
+                      '&.Mui-disabled': {
+                        background: 'rgba(255,255,255,0.05)',
+                        color: C.textDim,
+                        border: `1px solid ${C.border}`,
                         boxShadow: 'none',
                       },
                     }}
                   >
-                    {submitting ? (
-                      <CircularProgress size={24} color="inherit" />
-                    ) : (
-                      'Kirim Lamaran Sekarang'
-                    )}
+                    {submitting
+                      ? <CircularProgress size={22} sx={{ color: C.blue }} />
+                      : 'Kirim Lamaran Sekarang'}
                   </Button>
 
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{ textAlign: 'center', display: 'block', lineHeight: 1.7 }}
-                  >
-                    Dengan mengirim lamaran, Anda menyetujui bahwa data Anda akan diproses untuk
-                    keperluan seleksi rekrutmen sesuai kebijakan privasi kami.
+                  <Typography sx={{ fontSize: '0.72rem', color: C.textDim, textAlign: 'center', lineHeight: 1.8 }}>
+                    Dengan mengirim lamaran, Anda menyetujui data Anda diproses untuk keperluan rekrutmen.
                   </Typography>
                 </Box>
-              </Paper>
+              </Box>
             </Grid>
           </Grid>
         )}
 
-        {/* ─── STEP 2: Sukses ─── */}
+        {/* ═══ STEP 2: Success ════════════════════════════ */}
         {activeStep === 2 && (
-          <Box sx={{ maxWidth: 540, mx: 'auto', textAlign: 'center', pt: 4 }}>
-            {/* Icon */}
+          <Box sx={{ maxWidth: 520, mx: 'auto', textAlign: 'center', pt: 4 }}>
+            {/* Glow ring + icon */}
             <Box
               sx={{
-                width: 104,
-                height: 104,
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                mx: 'auto',
-                mb: 3,
-                boxShadow: '0 16px 48px rgba(16,185,129,0.3)',
+                width: 108, height: 108, borderRadius: '50%',
+                background: 'linear-gradient(135deg, #059669 0%, #34d399 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                mx: 'auto', mb: 4,
+                boxShadow: '0 0 0 18px rgba(52,211,153,0.07), 0 0 0 36px rgba(52,211,153,0.04), 0 0 80px rgba(52,211,153,0.3)',
               }}
             >
-              <CheckCircle sx={{ fontSize: 54, color: 'white' }} />
+              <CheckCircle sx={{ fontSize: 52, color: 'white' }} />
             </Box>
 
-            <Typography variant="h4" fontWeight={800} sx={{ mb: 1.5 }}>
-              Lamaran Berhasil Dikirim!
+            <Typography
+              variant="h4" fontWeight={900}
+              sx={{
+                mb: 1.5, letterSpacing: '-0.5px',
+                background: 'linear-gradient(135deg, #f0fdf4 0%, #86efac 60%, #34d399 100%)',
+                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              }}
+            >
+              Lamaran Terkirim!
             </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
+            <Typography variant="body1" sx={{ color: C.textMuted, mb: 1 }}>
               {resultData?.message || 'Lamaran kamu telah berhasil dikirim.'}
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-              Tim rekrutmen kami akan meninjau CV kamu untuk posisi{' '}
-              <Typography component="span" fontWeight={700} color="text.primary">
+            <Typography variant="body2" sx={{ color: C.textMuted, mb: 5, lineHeight: 1.9 }}>
+              CV kamu untuk posisi{' '}
+              <Box component="span" sx={{ color: C.text, fontWeight: 800 }}>
                 {resultData?.job_title}
-              </Typography>
-              . Jika profil kamu sesuai, kami akan menghubungi kamu melalui email yang didaftarkan.
+              </Box>{' '}
+              sedang kami proses. Kami akan menghubungi melalui email jika profilmu sesuai.
             </Typography>
 
             {/* Next Steps */}
-            <Paper
-              elevation={0}
+            <Box
               sx={{
-                bgcolor: '#eff6ff',
-                border: '1px solid #bfdbfe',
-                borderRadius: 3,
-                p: 3,
-                mb: 4,
-                textAlign: 'left',
+                bgcolor: C.surface, border: `1px solid ${C.border}`,
+                borderRadius: '16px', p: 3, mb: 4, textAlign: 'left',
+                position: 'relative', overflow: 'hidden',
+                '&::before': {
+                  content: '""', position: 'absolute', top: 0, left: 0, right: 0, height: '2px',
+                  background: 'linear-gradient(90deg, #059669 0%, #34d399 100%)',
+                },
               }}
             >
-              <Typography
-                variant="subtitle2"
-                fontWeight={700}
-                sx={{ mb: 2, color: '#1d4ed8', display: 'flex', alignItems: 'center', gap: 0.75 }}
-              >
-                <CheckCircle sx={{ fontSize: 16 }} /> Langkah Selanjutnya
+              <Typography sx={{ fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.15em', color: C.textDim, textTransform: 'uppercase', mb: 2 }}>
+                Langkah Selanjutnya
               </Typography>
               {[
-                'CV kamu sedang diproses oleh sistem AI SmartRecruit',
-                'Tim rekrutmen akan meninjau kandidat terbaik',
-                'Kandidat terpilih akan dihubungi via email dalam 3–5 hari kerja',
-              ].map((step, i) => (
-                <Box key={i} sx={{ display: 'flex', gap: 1.5, mb: i < 2 ? 1.5 : 0 }}>
+                { text: 'CV kamu sedang diproses sistem AI SmartRecruit', c: C.blue },
+                { text: 'Tim rekrutmen meninjau kandidat terbaik', c: C.purple },
+                { text: 'Kandidat terpilih dihubungi via email dalam 3–5 hari kerja', c: C.green },
+              ].map((item, i) => (
+                <Box key={i} sx={{ display: 'flex', gap: 1.5, mb: i < 2 ? 1.75 : 0 }}>
                   <Box
                     sx={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: '50%',
-                      bgcolor: '#3b82f6',
-                      color: 'white',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      flexShrink: 0,
-                      mt: 0.15,
+                      width: 24, height: 24, borderRadius: '50%', flexShrink: 0, mt: 0.1,
+                      background: `${item.c}18`,
+                      border: `1px solid ${item.c}35`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}
                   >
-                    {i + 1}
+                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 900, color: item.c }}>
+                      {i + 1}
+                    </Typography>
                   </Box>
-                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>
-                    {step}
+                  <Typography sx={{ fontSize: '0.85rem', color: C.textMuted, lineHeight: 1.75 }}>
+                    {item.text}
                   </Typography>
                 </Box>
               ))}
-            </Paper>
+            </Box>
 
             <Button
-              variant="contained"
-              size="large"
-              onClick={handleReset}
+              variant="contained" size="large" onClick={handleReset}
               sx={{
-                background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-                borderRadius: 2.5,
-                px: 5,
-                py: 1.5,
-                fontWeight: 700,
-                boxShadow: '0 6px 20px rgba(59,130,246,0.35)',
+                background: 'linear-gradient(135deg, #3b82f6 0%, #7c3aed 100%)',
+                borderRadius: '12px', px: 5, py: 1.5,
+                fontWeight: 800, fontSize: '0.9rem',
+                boxShadow: '0 8px 28px rgba(59,130,246,0.32)',
+                border: '1px solid rgba(96,165,250,0.28)',
                 '&:hover': {
-                  background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
+                  background: 'linear-gradient(135deg, #2563eb 0%, #6d28d9 100%)',
+                  boxShadow: '0 8px 36px rgba(59,130,246,0.48)',
                 },
               }}
             >
@@ -871,33 +1059,25 @@ export default function ApplicantPortal() {
         )}
       </Container>
 
-      {/* Footer */}
+      {/* ── FOOTER ─────────────────────────────────────── */}
       <Box
         sx={{
-          borderTop: '1px solid',
-          borderColor: 'divider',
-          bgcolor: 'white',
+          position: 'relative', zIndex: 1,
+          borderTop: `1px solid ${C.border}`,
+          bgcolor: 'rgba(255,255,255,0.012)',
           py: 3,
         }}
       >
         <Container maxWidth="lg">
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: 2,
-            }}
-          >
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <LeaderboardIcon sx={{ color: '#3b82f6', fontSize: 18 }} />
-              <Typography variant="body2" fontWeight={700} color="primary.main">
+              <LeaderboardIcon sx={{ color: C.blue, fontSize: 16 }} />
+              <Typography sx={{ fontSize: '0.85rem', fontWeight: 800, color: C.blue }}>
                 SmartRecruit
               </Typography>
             </Box>
-            <Typography variant="caption" color="text.secondary">
-              © 2025 SmartRecruit · Semua data dilindungi dan diproses sesuai kebijakan privasi kami.
+            <Typography sx={{ fontSize: '0.72rem', color: C.textDim }}>
+              © 2025 SmartRecruit · Data kamu dilindungi sesuai kebijakan privasi kami
             </Typography>
           </Box>
         </Container>
