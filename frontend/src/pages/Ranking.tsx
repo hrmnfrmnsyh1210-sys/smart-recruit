@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Box, Card, CardContent, Typography, Button, Chip, Alert, LinearProgress,
-  Tooltip, Grid, Pagination, Skeleton,
+  Tooltip, Grid, Pagination, Skeleton, CircularProgress,
 } from '@mui/material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -11,6 +11,8 @@ import WorkIcon from '@mui/icons-material/Work';
 import SchoolIcon from '@mui/icons-material/School';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LeaderboardIcon from '@mui/icons-material/Leaderboard';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   ResponsiveContainer, Tooltip as RechartsTooltip,
@@ -49,6 +51,8 @@ export default function Ranking() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [rankings, setRankings] = useState<RankingType[]>([]);
   const [rankingLoading, setRankingLoading] = useState(false);
+  const [autoRunning, setAutoRunning] = useState(false);
+  const [runningStatus, setRunningStatus] = useState('');
   const [error, setError] = useState('');
   const [selectedForCompare, setSelectedForCompare] = useState<number[]>([]);
   const [compareData, setCompareData] = useState<RankingType[]>([]);
@@ -62,18 +66,49 @@ export default function Ranking() {
       .finally(() => setJobsLoading(false));
   }, []);
 
-  useEffect(() => {
-    if (!selectedJob) return;
+  const fetchOrRunRanking = useCallback(async (job: Job, forceRun = false) => {
     setRankingLoading(true);
     setRankings([]);
     setSelectedForCompare([]);
     setCompareData([]);
-    rankingService
-      .getByJob(selectedJob.id)
-      .then((data) => setRankings(Array.isArray(data) ? data : []))
-      .catch(() => setError('Gagal memuat ranking'))
-      .finally(() => setRankingLoading(false));
-  }, [selectedJob]);
+    setError('');
+    setAutoRunning(false);
+    setRunningStatus('');
+
+    try {
+      // 1. Try fetching existing rankings first (unless forceRun)
+      if (!forceRun) {
+        const existing = await rankingService.getByJob(job.id);
+        const list = Array.isArray(existing) ? existing : [];
+        if (list.length > 0) {
+          setRankings(list);
+          setRankingLoading(false);
+          return;
+        }
+      }
+
+      // 2. No data (or forceRun) → auto-run ranking
+      setAutoRunning(true);
+      setRunningStatus('Menjalankan AI ranking untuk semua pelamar...');
+      await rankingService.runRanking(job.id);
+
+      setRunningStatus('Memuat hasil ranking...');
+      const fresh = await rankingService.getByJob(job.id);
+      setRankings(Array.isArray(fresh) ? fresh : []);
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(detail || 'Gagal memuat ranking. Pastikan ada pelamar dengan CV yang sudah diproses.');
+    } finally {
+      setRankingLoading(false);
+      setAutoRunning(false);
+      setRunningStatus('');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedJob) return;
+    fetchOrRunRanking(selectedJob);
+  }, [selectedJob, fetchOrRunRanking]);
 
   const handleExport = async (format: 'csv' | 'pdf') => {
     if (!selectedJob) return;
@@ -246,7 +281,7 @@ export default function Ranking() {
 
           {/* Action buttons (visible when job selected) */}
           {selectedJob && (
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
               {selectedForCompare.length >= 2 && (
                 <Button
                   variant="outlined"
@@ -260,19 +295,21 @@ export default function Ranking() {
               )}
               <Button
                 variant="outlined"
-                startIcon={<DownloadIcon />}
-                onClick={() => handleExport('csv')}
+                startIcon={rankingLoading ? <CircularProgress size={14} /> : <RefreshIcon />}
+                onClick={() => fetchOrRunRanking(selectedJob, true)}
                 size="small"
+                disabled={rankingLoading}
               >
-                Export CSV
+                Jalankan Ulang
               </Button>
               <Button
                 variant="outlined"
                 startIcon={<DownloadIcon />}
-                onClick={() => handleExport('pdf')}
+                onClick={() => handleExport('csv')}
                 size="small"
+                disabled={rankings.length === 0}
               >
-                Export PDF
+                Export CSV
               </Button>
             </Box>
           )}
@@ -451,46 +488,101 @@ export default function Ranking() {
         <Box>
           {/* Section divider + title */}
           <Box sx={{
-            display: 'flex', alignItems: 'center', gap: 2, mb: 3,
-            pb: 2, borderBottom: `1px solid ${C.border}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 2, mb: 3, pb: 2, borderBottom: `1px solid ${C.border}`,
+            flexWrap: 'wrap',
           }}>
-            <Box sx={{
-              width: 4, height: 32, borderRadius: '4px',
-              background: 'linear-gradient(180deg,#60a5fa,#a78bfa)',
-            }} />
-            <Box>
-              <Typography variant="h6" fontWeight={700} sx={{ color: C.text }}>
-                Ranking — {selectedJob.title}
-              </Typography>
-              <Typography variant="body2" sx={{ color: C.muted }}>
-                {rankingLoading ? 'Memuat ranking...' : `${rankings.length} kandidat terranking`}
-              </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{
+                width: 4, height: 32, borderRadius: '4px', flexShrink: 0,
+                background: 'linear-gradient(180deg,#60a5fa,#a78bfa)',
+              }} />
+              <Box>
+                <Typography variant="h6" fontWeight={700} sx={{ color: C.text }}>
+                  Ranking — {selectedJob.title}
+                </Typography>
+                <Typography variant="body2" sx={{ color: C.muted }}>
+                  {autoRunning
+                    ? runningStatus
+                    : rankingLoading
+                    ? 'Memuat...'
+                    : `${rankings.length} pelamar diurutkan berdasarkan kecocokan`}
+                </Typography>
+              </Box>
             </Box>
+            {autoRunning && (
+              <Box sx={{
+                display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1,
+                borderRadius: '10px', bgcolor: 'rgba(167,139,250,0.08)',
+                border: '1px solid rgba(167,139,250,0.2)',
+              }}>
+                <CircularProgress size={14} sx={{ color: C.purple }} />
+                <AutoAwesomeIcon sx={{ fontSize: 14, color: C.purple }} />
+                <Typography sx={{ fontSize: '0.78rem', color: C.purple, fontWeight: 600 }}>
+                  AI sedang memproses...
+                </Typography>
+              </Box>
+            )}
           </Box>
+
+          {/* Auto-running animation bar */}
+          {autoRunning && (
+            <LinearProgress
+              sx={{
+                mb: 2, height: 3, borderRadius: 2,
+                bgcolor: 'rgba(167,139,250,0.12)',
+                '& .MuiLinearProgress-bar': {
+                  background: 'linear-gradient(90deg,#60a5fa,#a78bfa)',
+                },
+              }}
+            />
+          )}
 
           <Card elevation={0} sx={{ border: `1px solid ${C.border}` }}>
             <CardContent>
-              <DataGrid
-                rows={rankings}
-                columns={columns}
-                loading={rankingLoading}
-                autoHeight
-                disableRowSelectionOnClick
-                pageSizeOptions={[10]}
-                initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-                getRowHeight={() => 'auto'}
-                sx={{
-                  border: 'none',
-                  '& .MuiDataGrid-cell': { py: 1 },
-                  '& .MuiDataGrid-columnHeaders': {
-                    bgcolor: 'rgba(255,255,255,0.025)',
-                    borderBottom: `1px solid ${C.border}`,
-                  },
-                  '& .MuiDataGrid-row:hover': {
-                    bgcolor: 'rgba(96,165,250,0.04)',
-                  },
-                }}
-              />
+              {/* No results after run */}
+              {!rankingLoading && !autoRunning && rankings.length === 0 && (
+                <Box sx={{ textAlign: 'center', py: 8 }}>
+                  <Box sx={{
+                    width: 56, height: 56, borderRadius: '14px', mx: 'auto', mb: 2,
+                    bgcolor: C.surface, border: `1px solid ${C.border}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <LeaderboardIcon sx={{ fontSize: 26, color: C.dim }} />
+                  </Box>
+                  <Typography sx={{ color: C.muted, fontWeight: 600, mb: 0.5 }}>
+                    Belum ada pelamar untuk posisi ini
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.82rem', color: C.dim }}>
+                    Pelamar perlu mengupload CV dan CV-nya harus sudah diproses
+                  </Typography>
+                </Box>
+              )}
+
+              {/* DataGrid */}
+              {(rankingLoading || rankings.length > 0) && (
+                <DataGrid
+                  rows={rankings}
+                  columns={columns}
+                  loading={rankingLoading || autoRunning}
+                  autoHeight
+                  disableRowSelectionOnClick
+                  pageSizeOptions={[10]}
+                  initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+                  getRowHeight={() => 'auto'}
+                  sx={{
+                    border: 'none',
+                    '& .MuiDataGrid-cell': { py: 1 },
+                    '& .MuiDataGrid-columnHeaders': {
+                      bgcolor: 'rgba(255,255,255,0.025)',
+                      borderBottom: `1px solid ${C.border}`,
+                    },
+                    '& .MuiDataGrid-row:hover': {
+                      bgcolor: 'rgba(96,165,250,0.04)',
+                    },
+                  }}
+                />
+              )}
             </CardContent>
           </Card>
         </Box>
