@@ -13,6 +13,7 @@ import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import Careers from './pages/Careers';
 import Apply from './pages/Apply';
+import ApplicantPortal from './pages/ApplicantPortal';
 import { CircularProgress, Box } from '@mui/material';
 
 const theme = createTheme({
@@ -70,6 +71,7 @@ function AppRoutes() {
       {/* Public pages - no login required */}
       <Route path="/careers" element={<Careers />} />
       <Route path="/apply/:jobId" element={<Apply />} />
+      <Route path="/portal" element={<ApplicantPortal />} />
 
       {/* Auth */}
       <Route
